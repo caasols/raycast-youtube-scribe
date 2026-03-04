@@ -6,14 +6,32 @@ import {
   Icon,
   LaunchType,
   List,
+  LocalStorage,
+  LaunchProps,
   Toast,
   confirmAlert,
   launchCommand,
   showToast,
 } from "@raycast/api";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { clearHistory, loadHistory, saveHistory } from "./history-store";
-import { HistoryEntry } from "./types";
+import { HistoryEntry, OutputFormat } from "./types";
+
+const VIEW_MODE_KEY = "transcript-history-view-mode";
+
+function fuzzyMatch(text: string, query: string): boolean {
+  const t = text.toLowerCase();
+  const q = query.toLowerCase().trim();
+  if (!q) return true;
+
+  let i = 0;
+  for (const ch of q) {
+    i = t.indexOf(ch, i);
+    if (i === -1) return false;
+    i += 1;
+  }
+  return true;
+}
 
 function statusAccessory(entry: HistoryEntry) {
   if (entry.status === "finished") {
@@ -27,7 +45,23 @@ function statusAccessory(entry: HistoryEntry) {
   return { icon: { source: Icon.CircleFilled, tintColor: Color.Red }, tooltip: "Fetch failed" };
 }
 
-function detailMarkdown(entry: HistoryEntry) {
+function outputForMode(entry: HistoryEntry, mode: OutputFormat): string {
+  if (!entry.rawSegments || entry.rawSegments.length === 0) {
+    return entry.output;
+  }
+
+  if (mode === "json") {
+    return JSON.stringify(entry.rawSegments, null, 2);
+  }
+
+  return entry.rawSegments
+    .map((segment) => segment.text)
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function detailMarkdown(entry: HistoryEntry, mode: OutputFormat) {
   if (entry.status === "fetching") {
     return `# ${entry.title}\n\nStill fetching transcript...`;
   }
@@ -36,12 +70,51 @@ function detailMarkdown(entry: HistoryEntry) {
     return `# ${entry.title}\n\n## Error log\n\n\`\`\`\n${entry.errorLog ?? "Unknown error"}\n\`\`\``;
   }
 
-  return `# ${entry.title}\n\n\`\`\`${entry.format}\n${entry.output}\n\`\`\``;
+  const output = outputForMode(entry, mode);
+  return `# ${entry.title}\n\n\`\`\`${mode}\n${output}\n\`\`\``;
 }
 
-export default function Command() {
+function TranscriptSearchView({ entry }: { entry: HistoryEntry }) {
+  const [query, setQuery] = useState("");
+
+  const segments = entry.rawSegments ?? [];
+  const matches = useMemo(() => {
+    if (!query.trim()) return segments.slice(0, 200);
+    return segments.filter((s) => fuzzyMatch(s.text, query));
+  }, [segments, query]);
+
+  return (
+    <List
+      searchText={query}
+      onSearchTextChange={setQuery}
+      isLoading={false}
+      filtering={false}
+      searchBarPlaceholder="Search inside transcript (fuzzy)"
+    >
+      {matches.map((segment, idx) => (
+        <List.Item
+          key={`${entry.id}-${idx}-${segment.start_ms}`}
+          icon={Icon.TextDocument}
+          title={segment.text}
+          accessories={[{ text: `${Math.round(segment.start_ms / 1000)}s` }]}
+        />
+      ))}
+    </List>
+  );
+}
+
+type Arguments = { videoId?: string };
+
+export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [viewMode, setViewMode] = useState<OutputFormat>("text");
+  const [searchText, setSearchText] = useState(props.arguments.videoId ?? "");
+
+  async function setAndPersistViewMode(mode: OutputFormat) {
+    setViewMode(mode);
+    await LocalStorage.setItem(VIEW_MODE_KEY, mode);
+  }
 
   async function refresh() {
     setIsLoading(true);
@@ -51,7 +124,15 @@ export default function Command() {
   }
 
   useEffect(() => {
-    refresh();
+    async function bootstrap() {
+      const savedMode = await LocalStorage.getItem<string>(VIEW_MODE_KEY);
+      if (savedMode === "text" || savedMode === "json") {
+        setViewMode(savedMode);
+      }
+      await refresh();
+    }
+
+    bootstrap();
   }, []);
 
   useEffect(() => {
@@ -65,7 +146,8 @@ export default function Command() {
   }, [history]);
 
   async function sendToAIChat(entry: HistoryEntry) {
-    await Clipboard.copy(entry.output);
+    const output = outputForMode(entry, viewMode);
+    await Clipboard.copy(output);
 
     const launchCandidates = [
       { ownerOrAuthorName: "raycast", extensionName: "raycast-ai", name: "ai-chat" },
@@ -77,7 +159,7 @@ export default function Command() {
         await launchCommand({
           ...candidate,
           type: LaunchType.UserInitiated,
-          fallbackText: entry.output,
+          fallbackText: output,
         });
 
         await showToast({
@@ -119,29 +201,58 @@ export default function Command() {
     await showToast({ style: Toast.Style.Success, title: "History cleared" });
   }
 
+  const filteredHistory = useMemo(() => {
+    if (!searchText.trim()) return history;
+    return history.filter((entry) => fuzzyMatch(entry.title || entry.videoId, searchText));
+  }, [history, searchText]);
+
   return (
-    <List isLoading={isLoading} searchBarPlaceholder="Search previously fetched transcripts">
-      {history.length === 0 ? (
+    <List
+      isLoading={isLoading}
+      filtering={false}
+      searchBarPlaceholder="Search video titles (fuzzy)"
+      searchText={searchText}
+      onSearchTextChange={setSearchText}
+    >
+      {filteredHistory.length === 0 ? (
         <List.EmptyView
           icon={Icon.Clock}
           title="No history yet"
           description="Run 'Get YouTube Transcript' first. This command shows all transcripts fetched previously."
         />
       ) : (
-        history.map((entry) => (
+        filteredHistory.map((entry) => (
           <List.Item
             key={entry.id}
             icon={Icon.TextDocument}
             title={entry.title || entry.videoId}
-            subtitle={`${entry.language ?? "auto"} • ${entry.format} • ${entry.segmentCount} segments`}
+            subtitle={`${entry.language ?? "auto"} • ${viewMode} view • ${entry.segmentCount} segments`}
             accessories={[statusAccessory(entry), { text: new Date(entry.createdAt).toLocaleString() }]}
-            detail={<List.Item.Detail markdown={detailMarkdown(entry)} />}
+            detail={<List.Item.Detail markdown={detailMarkdown(entry, viewMode)} />}
             actions={
               <ActionPanel>
                 {entry.status === "finished" ? (
                   <>
                     <Action title="Send to AI Chat" icon={Icon.Stars} onAction={() => sendToAIChat(entry)} />
-                    <Action.CopyToClipboard title="Copy Output" content={entry.output} />
+                    <Action.CopyToClipboard title="Copy Output" content={outputForMode(entry, viewMode)} />
+                    <Action
+                      title="View as Text"
+                      icon={Icon.AlignLeft}
+                      onAction={() => setAndPersistViewMode("text")}
+                      shortcut={{ modifiers: ["cmd"], key: "1" }}
+                    />
+                    <Action
+                      title="View as JSON"
+                      icon={Icon.Code}
+                      onAction={() => setAndPersistViewMode("json")}
+                      shortcut={{ modifiers: ["cmd"], key: "2" }}
+                    />
+                    <Action.Push
+                      title="Search in Transcript"
+                      icon={Icon.MagnifyingGlass}
+                      target={<TranscriptSearchView entry={entry} />}
+                      shortcut={{ modifiers: ["cmd"], key: "f" }}
+                    />
                   </>
                 ) : null}
                 <Action.OpenInBrowser title="Open Video" url={entry.url} />

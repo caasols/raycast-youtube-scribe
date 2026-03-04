@@ -5,8 +5,10 @@ import {
   Form,
   Icon,
   LaunchProps,
+  LaunchType,
   Toast,
   closeMainWindow,
+  launchCommand,
   popToRoot,
   showToast,
 } from "@raycast/api";
@@ -14,8 +16,8 @@ import { FormValidation, useForm } from "@raycast/utils";
 import { execFileSync } from "child_process";
 import { useEffect, useMemo, useState } from "react";
 import { YoutubeTranscript } from "youtube-transcript";
-import { patchHistoryEntry, prependHistory } from "./history-store";
-import { HistoryEntry, OutputFormat } from "./types";
+import { loadHistory, patchHistoryEntry, prependHistory } from "./history-store";
+import { HistoryEntry, OutputFormat, TranscriptSegment } from "./types";
 
 type Arguments = {
   url?: string;
@@ -173,7 +175,27 @@ async function fetchVideoTitle(videoId: string): Promise<string> {
   }
 }
 
-async function fetchTranscriptOutput(videoId: string, language: string, format: OutputFormat) {
+function buildTextOutput(rawSegments: TranscriptSegment[]): string {
+  return rawSegments
+    .map((segment) => segment.text)
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function buildJsonOutput(rawSegments: TranscriptSegment[]): string {
+  return JSON.stringify(rawSegments, null, 2);
+}
+
+function materializeOutput(entry: HistoryEntry, format: OutputFormat): string {
+  if (entry.rawSegments && entry.rawSegments.length > 0) {
+    return format === "json" ? buildJsonOutput(entry.rawSegments) : buildTextOutput(entry.rawSegments);
+  }
+
+  return entry.output;
+}
+
+async function fetchTranscriptOutput(videoId: string, language: string) {
   const preferredLang = normalizeInput(language);
 
   let chunks;
@@ -187,11 +209,13 @@ async function fetchTranscriptOutput(videoId: string, language: string, format: 
     throw toTranscriptError(error, preferredLang);
   }
 
-  const textOutput = chunks
-    .map((chunk) => chunk.text)
-    .join(" ")
-    .replace(/\s+/g, " ")
-    .trim();
+  const rawSegments: TranscriptSegment[] = chunks.map((chunk) => ({
+    text: chunk.text,
+    start_ms: chunk.offset,
+    duration_ms: chunk.duration,
+  }));
+
+  const textOutput = buildTextOutput(rawSegments);
 
   if (!textOutput) {
     throw new Error(
@@ -201,25 +225,29 @@ async function fetchTranscriptOutput(videoId: string, language: string, format: 
     );
   }
 
-  const output =
-    format === "json"
-      ? JSON.stringify(
-          chunks.map((chunk) => ({ text: chunk.text, start_ms: chunk.offset, duration_ms: chunk.duration })),
-          null,
-          2,
-        )
-      : textOutput;
-
   return {
-    output,
+    rawSegments,
+    textOutput,
+    jsonOutput: buildJsonOutput(rawSegments),
     language: preferredLang || chunks[0]?.lang,
     segmentCount: chunks.length,
   };
 }
 
-async function queueTranscriptJob(videoInput: string, language: string, format: OutputFormat): Promise<HistoryEntry> {
+async function queueTranscriptJob(
+  videoInput: string,
+  language: string,
+  format: OutputFormat,
+): Promise<{ entry: HistoryEntry; fromCache: boolean }> {
   const resolvedUrl = await resolveYoutubeInput(videoInput);
   const videoId = extractVideoId(resolvedUrl);
+
+  const history = await loadHistory();
+  const existing = history.find((entry) => entry.videoId === videoId && entry.status === "finished");
+  if (existing) {
+    return { entry: { ...existing, output: materializeOutput(existing, format), format }, fromCache: true };
+  }
+
   const id = `${Date.now()}-${videoId}`;
 
   const pending: HistoryEntry = {
@@ -241,18 +269,19 @@ async function queueTranscriptJob(videoInput: string, language: string, format: 
   await patchHistoryEntry(id, { title });
 
   try {
-    const result = await fetchTranscriptOutput(videoId, language, format);
+    const result = await fetchTranscriptOutput(videoId, language);
     const finished = {
       ...pending,
       title,
-      output: result.output,
+      output: format === "json" ? result.jsonOutput : result.textOutput,
+      rawSegments: result.rawSegments,
       language: result.language,
       segmentCount: result.segmentCount,
       status: "finished" as const,
       errorLog: undefined,
     };
     await patchHistoryEntry(id, finished);
-    return finished;
+    return { entry: finished, fromCache: false };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
     const failed: HistoryEntry = {
@@ -285,9 +314,25 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
     onSubmit: async (values) => {
       setIsLoading(true);
       try {
-        const entry = await queueTranscriptJob(values.videoInput, values.language, values.format);
-        await prependHistory(entry);
+        const { entry, fromCache } = await queueTranscriptJob(values.videoInput, values.language, values.format);
         await Clipboard.copy(entry.output);
+
+        if (fromCache) {
+          await launchCommand({
+            ownerOrAuthorName: "caasols",
+            extensionName: "youtube-scribe",
+            name: "transcript-history",
+            type: LaunchType.UserInitiated,
+            arguments: { videoId: entry.videoId },
+          });
+
+          await showToast({
+            style: Toast.Style.Success,
+            title: "Transcript already cached",
+            message: `Opened history for ${entry.videoId}`,
+          });
+          return;
+        }
 
         await showToast({
           style: Toast.Style.Success,
@@ -323,9 +368,26 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
 
       setIsLoading(true);
       try {
-        const entry = await queueTranscriptJob(defaults.videoInput, defaults.language, defaults.format);
-        await prependHistory(entry);
+        const { entry, fromCache } = await queueTranscriptJob(defaults.videoInput, defaults.language, defaults.format);
         await Clipboard.copy(entry.output);
+
+        if (fromCache) {
+          await launchCommand({
+            ownerOrAuthorName: "caasols",
+            extensionName: "youtube-scribe",
+            name: "transcript-history",
+            type: LaunchType.UserInitiated,
+            arguments: { videoId: entry.videoId },
+          });
+
+          await showToast({
+            style: Toast.Style.Success,
+            title: "Transcript already cached",
+            message: `Opened history for ${entry.videoId}`,
+          });
+          return;
+        }
+
         await closeMainWindow();
         await showToast({
           style: Toast.Style.Success,

@@ -43,7 +43,15 @@
       "title": "Transcript History",
       "subtitle": "YouTube Scribe",
       "description": "Browse all previously fetched YouTube transcripts",
-      "mode": "view"
+      "mode": "view",
+      "arguments": [
+        {
+          "name": "videoId",
+          "type": "text",
+          "placeholder": "Optional videoId filter",
+          "required": false
+        }
+      ]
     }
   ],
   "dependencies": {
