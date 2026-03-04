@@ -27,6 +27,13 @@ export async function prependHistory(entry: HistoryEntry): Promise<HistoryEntry[
   return next;
 }
 
+export async function patchHistoryEntry(id: string, patch: Partial<HistoryEntry>): Promise<HistoryEntry[]> {
+  const current = await loadHistory();
+  const next = current.map((entry) => (entry.id === id ? { ...entry, ...patch } : entry));
+  await saveHistory(next);
+  return next;
+}
+
 export async function clearHistory(): Promise<void> {
   await LocalStorage.removeItem(HISTORY_KEY);
 }

@@ -2,6 +2,7 @@ import {
   Action,
   ActionPanel,
   Clipboard,
+  Color,
   Icon,
   LaunchType,
   List,
@@ -13,6 +14,30 @@ import {
 import { useEffect, useState } from "react";
 import { clearHistory, loadHistory, saveHistory } from "./history-store";
 import { HistoryEntry } from "./types";
+
+function statusAccessory(entry: HistoryEntry) {
+  if (entry.status === "finished") {
+    return { icon: { source: Icon.CircleFilled, tintColor: Color.Green }, tooltip: "Transcript ready" };
+  }
+
+  if (entry.status === "fetching") {
+    return { icon: { source: Icon.CircleFilled, tintColor: Color.Orange }, tooltip: "Still fetching" };
+  }
+
+  return { icon: { source: Icon.CircleFilled, tintColor: Color.Red }, tooltip: "Fetch failed" };
+}
+
+function detailMarkdown(entry: HistoryEntry) {
+  if (entry.status === "fetching") {
+    return `# ${entry.title}\n\nStill fetching transcript...`;
+  }
+
+  if (entry.status === "error") {
+    return `# ${entry.title}\n\n## Error log\n\n\`\`\`\n${entry.errorLog ?? "Unknown error"}\n\`\`\``;
+  }
+
+  return `# ${entry.title}\n\n\`\`\`${entry.format}\n${entry.output}\n\`\`\``;
+}
 
 export default function Command() {
   const [history, setHistory] = useState<HistoryEntry[]>([]);
@@ -28,6 +53,16 @@ export default function Command() {
   useEffect(() => {
     refresh();
   }, []);
+
+  useEffect(() => {
+    if (!history.some((entry) => entry.status === "fetching")) return;
+
+    const timer = setInterval(() => {
+      refresh();
+    }, 1500);
+
+    return () => clearInterval(timer);
+  }, [history]);
 
   async function sendToAIChat(entry: HistoryEntry) {
     await Clipboard.copy(entry.output);
@@ -97,14 +132,18 @@ export default function Command() {
           <List.Item
             key={entry.id}
             icon={Icon.TextDocument}
-            title={entry.videoId}
+            title={entry.title || entry.videoId}
             subtitle={`${entry.language ?? "auto"} • ${entry.format} • ${entry.segmentCount} segments`}
-            accessories={[{ text: new Date(entry.createdAt).toLocaleString() }]}
-            detail={<List.Item.Detail markdown={`# ${entry.videoId}\n\n${"```"}${entry.format}\n${entry.output}\n${"```"}`} />}
+            accessories={[statusAccessory(entry), { text: new Date(entry.createdAt).toLocaleString() }]}
+            detail={<List.Item.Detail markdown={detailMarkdown(entry)} />}
             actions={
               <ActionPanel>
-                <Action title="Send to AI Chat" icon={Icon.Stars} onAction={() => sendToAIChat(entry)} />
-                <Action.CopyToClipboard title="Copy Output" content={entry.output} />
+                {entry.status === "finished" ? (
+                  <>
+                    <Action title="Send to AI Chat" icon={Icon.Stars} onAction={() => sendToAIChat(entry)} />
+                    <Action.CopyToClipboard title="Copy Output" content={entry.output} />
+                  </>
+                ) : null}
                 <Action.OpenInBrowser title="Open Video" url={entry.url} />
                 <Action
                   title="Remove from History"
