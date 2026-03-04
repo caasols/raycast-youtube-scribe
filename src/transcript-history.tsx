@@ -58,16 +58,46 @@ function statusAccessory(entry: HistoryEntry) {
   };
 }
 
-function listItemIcon(entry: HistoryEntry) {
-  if (entry.status === "finished") {
-    return { source: Icon.Document, tintColor: Color.Green };
+function statusEmoji(entry: HistoryEntry) {
+  if (entry.status === "finished") return "🟢";
+  if (entry.status === "fetching") return "🟠";
+  return "🔴";
+}
+
+function videoThumbnailUrl(videoId: string) {
+  return `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`;
+}
+
+function durationLabel(entry: HistoryEntry) {
+  const segments = entry.rawSegments ?? [];
+  if (segments.length === 0) return "--:--";
+
+  const first = segments[0];
+  const last = segments[segments.length - 1];
+  const durationMs = Math.max(0, last.start_ms + last.duration_ms - first.start_ms);
+  const totalSeconds = Math.round(durationMs / 1000);
+  const minutes = Math.floor(totalSeconds / 60)
+    .toString()
+    .padStart(2, "0");
+  const seconds = (totalSeconds % 60).toString().padStart(2, "0");
+  return `${minutes}:${seconds}`;
+}
+
+function rowDescription(entry: HistoryEntry) {
+  const text = entry.rawSegments?.[0]?.text?.trim();
+  if (text && text.length > 0) {
+    return text.length > 90 ? `${text.slice(0, 90)}…` : text;
+  }
+
+  if (entry.status === "error") {
+    return "Failed to transcribe";
   }
 
   if (entry.status === "fetching") {
-    return { source: Icon.Clock, tintColor: Color.Orange };
+    return "Transcribing in progress...";
   }
 
-  return { source: Icon.ExclamationMark, tintColor: Color.Red };
+  return "No transcript preview available";
 }
 
 function outputForMode(entry: HistoryEntry, mode: OutputFormat): string {
@@ -355,20 +385,17 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
     return history.filter((entry) => fuzzyMatch(entry.title || entry.videoId, searchText));
   }, [history, searchText]);
 
-  const finished = filteredHistory.filter((entry) => entry.status === "finished");
-  const active = filteredHistory.filter((entry) => entry.status === "fetching");
-  const failed = filteredHistory.filter((entry) => entry.status === "error");
-
   const renderItem = (entry: HistoryEntry) => (
     <List.Item
       key={entry.id}
-      icon={listItemIcon(entry)}
+      icon={{ source: videoThumbnailUrl(entry.videoId), fallback: Icon.Video }}
       title={entry.title || entry.videoId}
-      subtitle={`${entry.language ?? "auto"} • ${entry.segmentCount} segments`}
+      subtitle={rowDescription(entry)}
       accessories={[
-        statusAccessory(entry),
-        { tag: viewMode.toUpperCase() },
+        { text: "You", tooltip: "User" },
+        { text: durationLabel(entry), tooltip: "Approx. video duration" },
         { text: formatWhen(entry.createdAt), tooltip: new Date(entry.createdAt).toLocaleString() },
+        { text: statusEmoji(entry), tooltip: statusAccessory(entry).tooltip },
       ]}
       detail={<List.Item.Detail markdown={detailMarkdown(entry, viewMode)} />}
       actions={
@@ -471,11 +498,7 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
           description="Run 'Get YouTube Transcript' first. This command shows all transcripts fetched previously."
         />
       ) : (
-        <>
-          {active.length > 0 ? <List.Section title="In Progress">{active.map(renderItem)}</List.Section> : null}
-          {finished.length > 0 ? <List.Section title="Ready">{finished.map(renderItem)}</List.Section> : null}
-          {failed.length > 0 ? <List.Section title="Failed">{failed.map(renderItem)}</List.Section> : null}
-        </>
+        filteredHistory.map(renderItem)
       )}
     </List>
   );
