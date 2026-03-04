@@ -107,6 +107,38 @@ function getFocusedYoutubeUrl(): { url: string; app: string } {
   return { url, app };
 }
 
+function toTranscriptError(error: unknown, preferredLang: string): Error {
+  if (!(error instanceof Error)) return new Error("Failed to fetch transcript due to an unknown error.");
+
+  const code = error.name;
+
+  if (code === "YoutubeTranscriptDisabledError") {
+    return new Error("This video has transcripts disabled by the uploader.");
+  }
+
+  if (code === "YoutubeTranscriptVideoUnavailableError") {
+    return new Error("This video is unavailable (private, removed, or restricted).");
+  }
+
+  if (code === "YoutubeTranscriptNotAvailableLanguageError") {
+    return new Error(
+      preferredLang
+        ? `No transcript is available for language '${preferredLang}'. Try leaving language blank to auto-detect.`
+        : "No transcript is available for the requested language.",
+    );
+  }
+
+  if (code === "YoutubeTranscriptNotAvailableError") {
+    return new Error("No transcript track is available for this video.");
+  }
+
+  if (code === "YoutubeTranscriptTooManyRequestError") {
+    return new Error("YouTube is rate-limiting transcript requests right now. Please try again in a moment.");
+  }
+
+  return new Error(error.message || "Failed to fetch transcript.");
+}
+
 async function buildHistoryEntry(videoInput: string, language: string, format: OutputFormat): Promise<HistoryEntry> {
   const manualUrl = normalizeInput(videoInput);
   const preferredLang = normalizeInput(language);
@@ -114,14 +146,32 @@ async function buildHistoryEntry(videoInput: string, language: string, format: O
   const resolvedUrl = manualUrl || getFocusedYoutubeUrl().url;
   const videoId = extractVideoId(resolvedUrl);
 
-  const chunks = await YoutubeTranscript.fetchTranscript(videoId, preferredLang ? { lang: preferredLang } : undefined);
+  let chunks;
+  try {
+    // Some videos return no rows when a requested language is unavailable.
+    // If that happens, retry without language pinning before failing.
+    chunks = await YoutubeTranscript.fetchTranscript(videoId, preferredLang ? { lang: preferredLang } : undefined);
+
+    if (chunks.length === 0 && preferredLang) {
+      chunks = await YoutubeTranscript.fetchTranscript(videoId);
+    }
+  } catch (error) {
+    throw toTranscriptError(error, preferredLang);
+  }
+
   const textOutput = chunks
     .map((chunk) => chunk.text)
     .join(" ")
     .replace(/\s+/g, " ")
     .trim();
 
-  if (!textOutput) throw new Error("Transcript was empty for this video.");
+  if (!textOutput) {
+    throw new Error(
+      preferredLang
+        ? `Transcript was empty for language '${preferredLang}'. Try leaving language blank to auto-detect.`
+        : "Transcript was empty for this video. It may have no accessible transcript track.",
+    );
+  }
 
   const output =
     format === "json"
