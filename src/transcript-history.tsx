@@ -64,15 +64,15 @@ function outputForMode(entry: HistoryEntry, mode: OutputFormat): string {
 
 function detailMarkdown(entry: HistoryEntry, mode: OutputFormat) {
   if (entry.status === "fetching") {
-    return `# ${entry.title}\n\nStill fetching transcript...`;
+    return `# ${entry.title}\n\nStill fetching transcript...\n\n## Debug log\n\n\`\`\`\n${entry.debugLog ?? "No debug data"}\n\`\`\``;
   }
 
   if (entry.status === "error") {
-    return `# ${entry.title}\n\n## Error log\n\n\`\`\`\n${entry.errorLog ?? "Unknown error"}\n\`\`\``;
+    return `# ${entry.title}\n\n## Error log\n\n\`\`\`\n${entry.errorLog ?? "Unknown error"}\n\`\`\`\n\n## Debug log\n\n\`\`\`\n${entry.debugLog ?? "No debug data"}\n\`\`\``;
   }
 
   const output = outputForMode(entry, mode);
-  return `# ${entry.title}\n\n\`\`\`${mode}\n${output}\n\`\`\``;
+  return `# ${entry.title}\n\n\`\`\`${mode}\n${output}\n\`\`\`\n\n## Debug log\n\n\`\`\`\n${entry.debugLog ?? "No debug data"}\n\`\`\``;
 }
 
 function TranscriptSearchView({ entry }: { entry: HistoryEntry }) {
@@ -131,6 +131,7 @@ function TranscriptDetailView({
           {entry.status === "error" ? (
             <Action.CopyToClipboard title="Copy Error Log" content={entry.errorLog ?? "Unknown error"} />
           ) : null}
+          <Action.CopyToClipboard title="Copy Debug Log" content={entry.debugLog ?? "No debug data"} />
           <Action.OpenInBrowser title="Open Video" url={entry.url} />
         </ActionPanel>
       }
@@ -328,6 +329,7 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
                       target={<TranscriptSearchView entry={entry} />}
                       shortcut={{ modifiers: ["cmd"], key: "f" }}
                     />
+                    <Action.CopyToClipboard title="Copy Debug Log" content={entry.debugLog ?? "No debug data"} />
                   </>
                 ) : (
                   <>
@@ -343,6 +345,7 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
                         shortcut={{ modifiers: ["cmd"], key: "c" }}
                       />
                     ) : null}
+                    <Action.CopyToClipboard title="Copy Debug Log" content={entry.debugLog ?? "No debug data"} />
                   </>
                 )}
                 <Action.OpenInBrowser title="Open Video" url={entry.url} shortcut={{ modifiers: ["cmd"], key: "o" }} />

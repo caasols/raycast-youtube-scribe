@@ -21,4 +21,5 @@ export type HistoryEntry = {
   rawSegments?: TranscriptSegment[];
   status: TranscriptStatus;
   errorLog?: string;
+  debugLog?: string;
 };
