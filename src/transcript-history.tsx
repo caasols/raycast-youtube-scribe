@@ -36,14 +36,68 @@ function fuzzyMatch(text: string, query: string): boolean {
 
 function statusAccessory(entry: HistoryEntry) {
   if (entry.status === "finished") {
-    return { icon: { source: Icon.CircleFilled, tintColor: Color.Green }, tooltip: "Transcript ready" };
+    return {
+      icon: { source: Icon.CircleFilled, tintColor: Color.Green },
+      text: "Ready",
+      tooltip: "Transcript ready",
+    };
   }
 
   if (entry.status === "fetching") {
-    return { icon: { source: Icon.CircleFilled, tintColor: Color.Orange }, tooltip: "Still fetching" };
+    return {
+      icon: { source: Icon.CircleFilled, tintColor: Color.Orange },
+      text: "Fetching",
+      tooltip: "Still fetching",
+    };
   }
 
-  return { icon: { source: Icon.CircleFilled, tintColor: Color.Red }, tooltip: "Fetch failed" };
+  return {
+    icon: { source: Icon.CircleFilled, tintColor: Color.Red },
+    text: "Failed",
+    tooltip: "Fetch failed",
+  };
+}
+
+function statusEmoji(entry: HistoryEntry) {
+  if (entry.status === "finished") return "🟢";
+  if (entry.status === "fetching") return "🟠";
+  return "🔴";
+}
+
+function videoThumbnailUrl(videoId: string) {
+  return `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`;
+}
+
+function durationLabel(entry: HistoryEntry) {
+  const segments = entry.rawSegments ?? [];
+  if (segments.length === 0) return "--:--";
+
+  const first = segments[0];
+  const last = segments[segments.length - 1];
+  const durationMs = Math.max(0, last.start_ms + last.duration_ms - first.start_ms);
+  const totalSeconds = Math.round(durationMs / 1000);
+  const minutes = Math.floor(totalSeconds / 60)
+    .toString()
+    .padStart(2, "0");
+  const seconds = (totalSeconds % 60).toString().padStart(2, "0");
+  return `${minutes}:${seconds}`;
+}
+
+function rowDescription(entry: HistoryEntry) {
+  const text = entry.rawSegments?.[0]?.text?.trim();
+  if (text && text.length > 0) {
+    return text.length > 90 ? `${text.slice(0, 90)}…` : text;
+  }
+
+  if (entry.status === "error") {
+    return "Failed to transcribe";
+  }
+
+  if (entry.status === "fetching") {
+    return "Transcribing in progress...";
+  }
+
+  return "No transcript preview available";
 }
 
 function outputForMode(entry: HistoryEntry, mode: OutputFormat): string {
@@ -62,17 +116,89 @@ function outputForMode(entry: HistoryEntry, mode: OutputFormat): string {
     .trim();
 }
 
+function formatWhen(createdAt: string) {
+  const date = new Date(createdAt);
+  const now = Date.now();
+  const diffMs = now - date.getTime();
+  const minute = 60 * 1000;
+  const hour = 60 * minute;
+  const day = 24 * hour;
+
+  if (diffMs < minute) return "just now";
+  if (diffMs < hour) return `${Math.floor(diffMs / minute)}m ago`;
+  if (diffMs < day) return `${Math.floor(diffMs / hour)}h ago`;
+  if (diffMs < 7 * day) return `${Math.floor(diffMs / day)}d ago`;
+
+  return date.toLocaleDateString();
+}
+
+function buildBugReport(entry: HistoryEntry): string {
+  const payload = {
+    videoId: entry.videoId,
+    title: entry.title,
+    url: entry.url,
+    createdAt: entry.createdAt,
+    status: entry.status,
+    language: entry.language ?? "auto",
+    format: entry.format,
+    segmentCount: entry.segmentCount,
+    errorLog: entry.errorLog ?? null,
+    debugLog: entry.debugLog ?? null,
+  };
+
+  return JSON.stringify(payload, null, 2);
+}
+
 function detailMarkdown(entry: HistoryEntry, mode: OutputFormat) {
+  const metadata = [
+    `- **Status:** ${statusAccessory(entry).text}`,
+    `- **Language:** ${entry.language ?? "auto"}`,
+    `- **Segments:** ${entry.segmentCount}`,
+    `- **Saved:** ${new Date(entry.createdAt).toLocaleString()}`,
+    `- **View mode:** ${mode.toUpperCase()}`,
+    `- **URL:** ${entry.url}`,
+  ].join("\n");
+
   if (entry.status === "fetching") {
-    return `# ${entry.title}\n\nStill fetching transcript...`;
+    return `# ${entry.title}\n\n${metadata}\n\n---\n\n## Processing\nStill fetching transcript...\n\n## Debug log\n\n\
+\
+\
+${entry.debugLog ?? "No debug data"}\n\
+\
+\
+`;
   }
 
   if (entry.status === "error") {
-    return `# ${entry.title}\n\n## Error log\n\n\`\`\`\n${entry.errorLog ?? "Unknown error"}\n\`\`\``;
+    return `# ${entry.title}\n\n${metadata}\n\n---\n\n## Error log\n\n\
+\
+\
+${entry.errorLog ?? "Unknown error"}\n\
+\
+\
+\n## Debug log\n\n\
+\
+\
+${entry.debugLog ?? "No debug data"}\n\
+\
+\
+`;
   }
 
   const output = outputForMode(entry, mode);
-  return `# ${entry.title}\n\n\`\`\`${mode}\n${output}\n\`\`\``;
+  return `# ${entry.title}\n\n${metadata}\n\n---\n\n## Transcript\n\n\
+\
+\
+${output}\n\
+\
+\
+\n## Debug log\n\n\
+\
+\
+${entry.debugLog ?? "No debug data"}\n\
+\
+\
+`;
 }
 
 function TranscriptSearchView({ entry }: { entry: HistoryEntry }) {
@@ -131,6 +257,8 @@ function TranscriptDetailView({
           {entry.status === "error" ? (
             <Action.CopyToClipboard title="Copy Error Log" content={entry.errorLog ?? "Unknown error"} />
           ) : null}
+          <Action.CopyToClipboard title="Copy Debug Log" content={entry.debugLog ?? "No debug data"} />
+          <Action.CopyToClipboard title="Copy Bug Report" content={buildBugReport(entry)} />
           <Action.OpenInBrowser title="Open Video" url={entry.url} />
         </ActionPanel>
       }
@@ -257,6 +385,103 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
     return history.filter((entry) => fuzzyMatch(entry.title || entry.videoId, searchText));
   }, [history, searchText]);
 
+  const renderItem = (entry: HistoryEntry) => (
+    <List.Item
+      key={entry.id}
+      icon={{ source: videoThumbnailUrl(entry.videoId), fallback: Icon.Video }}
+      title={entry.title || entry.videoId}
+      subtitle={rowDescription(entry)}
+      accessories={[
+        { text: "You", tooltip: "User" },
+        { text: durationLabel(entry), tooltip: "Approx. video duration" },
+        { text: formatWhen(entry.createdAt), tooltip: new Date(entry.createdAt).toLocaleString() },
+        { text: statusEmoji(entry), tooltip: statusAccessory(entry).tooltip },
+      ]}
+      detail={<List.Item.Detail markdown={detailMarkdown(entry, viewMode)} />}
+      actions={
+        <ActionPanel>
+          <Action.Push
+            title="Open Details"
+            icon={Icon.Sidebar}
+            target={
+              <TranscriptDetailView
+                entry={entry}
+                mode={viewMode}
+                onSummarize={() => summarizeTranscript(entry)}
+                onSendToAIChat={() => sendToAIChat(entry)}
+              />
+            }
+          />
+          {entry.status === "finished" ? (
+            <>
+              <Action
+                title="Summarize Transcript"
+                icon={Icon.BulletPoints}
+                onAction={() => summarizeTranscript(entry)}
+                shortcut={{ modifiers: ["cmd", "shift"], key: "s" }}
+              />
+              <Action
+                title="Send to AI Chat"
+                icon={Icon.Stars}
+                onAction={() => sendToAIChat(entry)}
+                shortcut={{ modifiers: ["cmd", "shift"], key: "a" }}
+              />
+              <Action.CopyToClipboard title="Copy Output" content={outputForMode(entry, viewMode)} />
+              <Action
+                title="View as Text"
+                icon={Icon.AlignLeft}
+                onAction={() => setAndPersistViewMode("text")}
+                shortcut={{ modifiers: ["cmd"], key: "1" }}
+              />
+              <Action
+                title="View as JSON"
+                icon={Icon.Code}
+                onAction={() => setAndPersistViewMode("json")}
+                shortcut={{ modifiers: ["cmd"], key: "2" }}
+              />
+              <Action.Push
+                title="Search in Transcript"
+                icon={Icon.MagnifyingGlass}
+                target={<TranscriptSearchView entry={entry} />}
+                shortcut={{ modifiers: ["cmd"], key: "f" }}
+              />
+              <Action.CopyToClipboard title="Copy Debug Log" content={entry.debugLog ?? "No debug data"} />
+              <Action.CopyToClipboard title="Copy Bug Report" content={buildBugReport(entry)} />
+            </>
+          ) : (
+            <>
+              <Action title="Refresh" icon={Icon.ArrowClockwise} onAction={refresh} />
+              {entry.status === "error" ? (
+                <Action.CopyToClipboard
+                  title="Copy Error Log"
+                  content={entry.errorLog ?? "Unknown error"}
+                  shortcut={{ modifiers: ["cmd"], key: "c" }}
+                />
+              ) : null}
+              <Action.CopyToClipboard title="Copy Debug Log" content={entry.debugLog ?? "No debug data"} />
+              <Action.CopyToClipboard title="Copy Bug Report" content={buildBugReport(entry)} />
+            </>
+          )}
+          <Action.OpenInBrowser title="Open Video" url={entry.url} shortcut={{ modifiers: ["cmd"], key: "o" }} />
+          <Action
+            title="Remove from History"
+            style={Action.Style.Destructive}
+            icon={Icon.Trash}
+            onAction={() => removeEntry(entry.id)}
+          />
+          <Action
+            title="Clear All History"
+            style={Action.Style.Destructive}
+            icon={Icon.Trash}
+            shortcut={{ modifiers: ["cmd", "shift"], key: "backspace" }}
+            onAction={removeAll}
+          />
+          {entry.status === "finished" ? <Action title="Refresh" icon={Icon.ArrowClockwise} onAction={refresh} /> : null}
+        </ActionPanel>
+      }
+    />
+  );
+
   return (
     <List
       isLoading={isLoading}
@@ -273,97 +498,7 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
           description="Run 'Get YouTube Transcript' first. This command shows all transcripts fetched previously."
         />
       ) : (
-        filteredHistory.map((entry) => (
-          <List.Item
-            key={entry.id}
-            icon={Icon.TextDocument}
-            title={entry.title || entry.videoId}
-            subtitle={`${entry.language ?? "auto"} • ${viewMode} view • ${entry.segmentCount} segments`}
-            accessories={[statusAccessory(entry), { text: new Date(entry.createdAt).toLocaleString() }]}
-            detail={<List.Item.Detail markdown={detailMarkdown(entry, viewMode)} />}
-            actions={
-              <ActionPanel>
-                <Action.Push
-                  title="Open Details"
-                  icon={Icon.Sidebar}
-                  target={
-                    <TranscriptDetailView
-                      entry={entry}
-                      mode={viewMode}
-                      onSummarize={() => summarizeTranscript(entry)}
-                      onSendToAIChat={() => sendToAIChat(entry)}
-                    />
-                  }
-                />
-                {entry.status === "finished" ? (
-                  <>
-                    <Action
-                      title="Summarize Transcript"
-                      icon={Icon.BulletPoints}
-                      onAction={() => summarizeTranscript(entry)}
-                      shortcut={{ modifiers: ["cmd", "shift"], key: "s" }}
-                    />
-                    <Action
-                      title="Send to AI Chat"
-                      icon={Icon.Stars}
-                      onAction={() => sendToAIChat(entry)}
-                      shortcut={{ modifiers: ["cmd", "shift"], key: "a" }}
-                    />
-                    <Action.CopyToClipboard title="Copy Output" content={outputForMode(entry, viewMode)} />
-                    <Action
-                      title="View as Text"
-                      icon={Icon.AlignLeft}
-                      onAction={() => setAndPersistViewMode("text")}
-                      shortcut={{ modifiers: ["cmd"], key: "1" }}
-                    />
-                    <Action
-                      title="View as JSON"
-                      icon={Icon.Code}
-                      onAction={() => setAndPersistViewMode("json")}
-                      shortcut={{ modifiers: ["cmd"], key: "2" }}
-                    />
-                    <Action.Push
-                      title="Search in Transcript"
-                      icon={Icon.MagnifyingGlass}
-                      target={<TranscriptSearchView entry={entry} />}
-                      shortcut={{ modifiers: ["cmd"], key: "f" }}
-                    />
-                  </>
-                ) : (
-                  <>
-                    <Action
-                      title="Refresh"
-                      icon={Icon.ArrowClockwise}
-                      onAction={refresh}
-                    />
-                    {entry.status === "error" ? (
-                      <Action.CopyToClipboard
-                        title="Copy Error Log"
-                        content={entry.errorLog ?? "Unknown error"}
-                        shortcut={{ modifiers: ["cmd"], key: "c" }}
-                      />
-                    ) : null}
-                  </>
-                )}
-                <Action.OpenInBrowser title="Open Video" url={entry.url} shortcut={{ modifiers: ["cmd"], key: "o" }} />
-                <Action
-                  title="Remove from History"
-                  style={Action.Style.Destructive}
-                  icon={Icon.Trash}
-                  onAction={() => removeEntry(entry.id)}
-                />
-                <Action
-                  title="Clear All History"
-                  style={Action.Style.Destructive}
-                  icon={Icon.Trash}
-                  shortcut={{ modifiers: ["cmd", "shift"], key: "backspace" }}
-                  onAction={removeAll}
-                />
-                {entry.status === "finished" ? <Action title="Refresh" icon={Icon.ArrowClockwise} onAction={refresh} /> : null}
-              </ActionPanel>
-            }
-          />
-        ))
+        filteredHistory.map(renderItem)
       )}
     </List>
   );

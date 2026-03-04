@@ -31,7 +31,7 @@ type FormValues = {
   format: OutputFormat;
 };
 
-const BUILD_TAG = "diag-2026-03-04b";
+const BUILD_TAG = "diag-2026-03-04d";
 
 const BROWSER_SCRIPTS: Record<string, string> = {
   "Google Chrome": 'tell application "Google Chrome" to return URL of active tab of front window',
@@ -95,6 +95,32 @@ function runAppleScript(script: string): string | null {
   }
 }
 
+type DebugStep = {
+  step: string;
+  ok: boolean;
+  details?: Record<string, unknown>;
+};
+
+type InputResolution = {
+  url: string;
+  source: "manual" | "clipboard" | "focused-tab";
+  app?: string;
+  debug: DebugStep[];
+};
+
+function toDebugJson(context: Record<string, unknown>, steps: DebugStep[]): string {
+  return JSON.stringify(
+    {
+      build: BUILD_TAG,
+      at: new Date().toISOString(),
+      ...context,
+      steps,
+    },
+    null,
+    2,
+  );
+}
+
 function getFocusedYoutubeUrl(): { url: string; app: string } {
   if (process.platform !== "darwin") {
     throw new Error("Focused browser detection is only available on macOS. Paste the YouTube URL instead.");
@@ -152,15 +178,35 @@ function toTranscriptError(error: unknown, preferredLang: string): Error {
   return new Error((error.message || "Failed to fetch transcript.") + details);
 }
 
-async function resolveYoutubeInput(videoInput: string): Promise<string> {
+async function resolveYoutubeInput(videoInput: string): Promise<InputResolution> {
+  const debug: DebugStep[] = [];
+
   const manualUrl = normalizeInput(videoInput);
-  if (manualUrl) return manualUrl;
+  if (manualUrl) {
+    debug.push({ step: "manual-input", ok: true, details: { value: manualUrl } });
+    return { url: manualUrl, source: "manual", debug };
+  }
+  debug.push({ step: "manual-input", ok: false });
 
   const clipboardText = await Clipboard.readText();
   const clipboardUrl = extractYoutubeUrlFromText(clipboardText ?? undefined);
-  if (clipboardUrl) return clipboardUrl;
+  if (clipboardUrl) {
+    debug.push({ step: "clipboard-scan", ok: true, details: { value: clipboardUrl } });
+    return { url: clipboardUrl, source: "clipboard", debug };
+  }
+  debug.push({ step: "clipboard-scan", ok: false });
 
-  return getFocusedYoutubeUrl().url;
+  try {
+    const focused = getFocusedYoutubeUrl();
+    debug.push({ step: "focused-tab", ok: true, details: { app: focused.app, value: focused.url } });
+    return { url: focused.url, source: "focused-tab", app: focused.app, debug };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown focused-tab detection error";
+    debug.push({ step: "focused-tab", ok: false, details: { error: message } });
+    throw new Error(
+      `${message}\n\nDebug trace:\n${toDebugJson({ phase: "resolve-input", source: "none" }, debug)}`,
+    );
+  }
 }
 
 async function fetchVideoTitle(videoId: string): Promise<string> {
@@ -239,13 +285,40 @@ async function queueTranscriptJob(
   language: string,
   format: OutputFormat,
 ): Promise<{ entry: HistoryEntry; fromCache: boolean }> {
-  const resolvedUrl = await resolveYoutubeInput(videoInput);
-  const videoId = extractVideoId(resolvedUrl);
+  const inputResolution = await resolveYoutubeInput(videoInput);
+  const resolvedUrl = inputResolution.url;
+
+  let videoId: string;
+  try {
+    videoId = extractVideoId(resolvedUrl);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Please provide a valid YouTube URL or video ID.";
+    throw new Error(
+      `${message}\n\nDebug trace:\n${toDebugJson({ phase: "extract-video-id", resolvedUrl }, inputResolution.debug)}`,
+    );
+  }
 
   const history = await loadHistory();
   const existing = history.find((entry) => entry.videoId === videoId && entry.status === "finished");
   if (existing) {
-    return { entry: { ...existing, output: materializeOutput(existing, format), format }, fromCache: true };
+    return {
+      entry: {
+        ...existing,
+        output: materializeOutput(existing, format),
+        format,
+        debugLog: toDebugJson(
+          {
+            phase: "cache-hit",
+            source: inputResolution.source,
+            app: inputResolution.app,
+            resolvedUrl,
+            videoId,
+          },
+          [...inputResolution.debug, { step: "cache-hit", ok: true }],
+        ),
+      },
+      fromCache: true,
+    };
   }
 
   const id = `${Date.now()}-${videoId}`;
@@ -261,6 +334,18 @@ async function queueTranscriptJob(
     segmentCount: 0,
     output: "Still fetching transcript...",
     status: "fetching",
+    debugLog: toDebugJson(
+      {
+        phase: "pending",
+        source: inputResolution.source,
+        app: inputResolution.app,
+        resolvedUrl,
+        videoId,
+        requestedLanguage: normalizeInput(language) || "auto",
+        format,
+      },
+      [...inputResolution.debug, { step: "history-write-pending", ok: true }],
+    ),
   };
 
   await prependHistory(pending);
@@ -279,6 +364,20 @@ async function queueTranscriptJob(
       segmentCount: result.segmentCount,
       status: "finished" as const,
       errorLog: undefined,
+      debugLog: toDebugJson(
+        {
+          phase: "transcript-fetched",
+          source: inputResolution.source,
+          app: inputResolution.app,
+          resolvedUrl,
+          videoId,
+          requestedLanguage: normalizeInput(language) || "auto",
+          effectiveLanguage: result.language ?? "unknown",
+          segmentCount: result.segmentCount,
+          format,
+        },
+        [...inputResolution.debug, { step: "transcript-fetch", ok: true, details: { segmentCount: result.segmentCount } }],
+      ),
     };
     await patchHistoryEntry(id, finished);
     return { entry: finished, fromCache: false };
@@ -290,6 +389,19 @@ async function queueTranscriptJob(
       status: "error",
       output: `Failed to fetch transcript.`,
       errorLog: errorMessage,
+      debugLog: toDebugJson(
+        {
+          phase: "transcript-error",
+          source: inputResolution.source,
+          app: inputResolution.app,
+          resolvedUrl,
+          videoId,
+          requestedLanguage: normalizeInput(language) || "auto",
+          format,
+          error: errorMessage,
+        },
+        [...inputResolution.debug, { step: "transcript-fetch", ok: false, details: { error: errorMessage } }],
+      ),
     };
     await patchHistoryEntry(id, failed);
     throw error;
@@ -364,7 +476,17 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
       const clipboardText = await Clipboard.readText();
       const hasAutoUrl = Boolean(extractYoutubeUrlFromText(clipboardText ?? undefined));
       const hasAnyArgs = Boolean(defaults.videoInput || defaults.language || props.arguments.format);
-      if (!hasAnyArgs && !hasAutoUrl) return;
+
+      let hasFocusedYoutube = false;
+      if (!hasAnyArgs && !hasAutoUrl) {
+        try {
+          hasFocusedYoutube = Boolean(getFocusedYoutubeUrl().url);
+        } catch {
+          hasFocusedYoutube = false;
+        }
+      }
+
+      if (!hasAnyArgs && !hasAutoUrl && !hasFocusedYoutube) return;
 
       setIsLoading(true);
       try {
