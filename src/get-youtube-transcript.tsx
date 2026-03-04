@@ -149,13 +149,15 @@ function toTranscriptError(error: unknown, preferredLang: string): Error {
   if (!(error instanceof Error)) return new Error("Failed to fetch transcript due to an unknown error.");
 
   const code = error.name;
-  const details = error.message ? ` [${code}] ${error.message}` : ` [${code}]`;
+  const rawMessage = (error.message || "").trim();
+  const msg = rawMessage.toLowerCase();
+  const details = rawMessage ? ` [${code}] ${rawMessage}` : ` [${code}]`;
 
-  if (code === "YoutubeTranscriptDisabledError") {
+  if (code === "YoutubeTranscriptDisabledError" || msg.includes("transcript is disabled")) {
     return new Error(`This video has transcripts disabled by the uploader.${details}`);
   }
 
-  if (code === "YoutubeTranscriptVideoUnavailableError") {
+  if (code === "YoutubeTranscriptVideoUnavailableError" || msg.includes("video unavailable")) {
     return new Error(`This video is unavailable (private, removed, or restricted).${details}`);
   }
 
@@ -167,11 +169,11 @@ function toTranscriptError(error: unknown, preferredLang: string): Error {
     );
   }
 
-  if (code === "YoutubeTranscriptNotAvailableError") {
+  if (code === "YoutubeTranscriptNotAvailableError" || msg.includes("no transcripts are available")) {
     return new Error(`No transcript track is available for this video.${details}`);
   }
 
-  if (code === "YoutubeTranscriptTooManyRequestError") {
+  if (code === "YoutubeTranscriptTooManyRequestError" || msg.includes("too many request")) {
     return new Error(`YouTube is rate-limiting transcript requests right now. Please try again in a moment.${details}`);
   }
 

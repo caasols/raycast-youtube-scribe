@@ -486,7 +486,6 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
     <List
       isLoading={isLoading}
       filtering={false}
-      isShowingDetail
       searchBarPlaceholder="Search video titles (fuzzy)"
       searchText={searchText}
       onSearchTextChange={setSearchText}
