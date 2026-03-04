@@ -5,8 +5,10 @@ import {
   Form,
   Icon,
   LaunchProps,
+  LaunchType,
   Toast,
   closeMainWindow,
+  launchCommand,
   popToRoot,
   showToast,
 } from "@raycast/api";
@@ -232,14 +234,18 @@ async function fetchTranscriptOutput(videoId: string, language: string) {
   };
 }
 
-async function queueTranscriptJob(videoInput: string, language: string, format: OutputFormat): Promise<HistoryEntry> {
+async function queueTranscriptJob(
+  videoInput: string,
+  language: string,
+  format: OutputFormat,
+): Promise<{ entry: HistoryEntry; fromCache: boolean }> {
   const resolvedUrl = await resolveYoutubeInput(videoInput);
   const videoId = extractVideoId(resolvedUrl);
 
   const history = await loadHistory();
   const existing = history.find((entry) => entry.videoId === videoId && entry.status === "finished");
   if (existing) {
-    return { ...existing, output: materializeOutput(existing, format), format };
+    return { entry: { ...existing, output: materializeOutput(existing, format), format }, fromCache: true };
   }
 
   const id = `${Date.now()}-${videoId}`;
@@ -275,7 +281,7 @@ async function queueTranscriptJob(videoInput: string, language: string, format: 
       errorLog: undefined,
     };
     await patchHistoryEntry(id, finished);
-    return finished;
+    return { entry: finished, fromCache: false };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
     const failed: HistoryEntry = {
@@ -308,8 +314,25 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
     onSubmit: async (values) => {
       setIsLoading(true);
       try {
-        const entry = await queueTranscriptJob(values.videoInput, values.language, values.format);
+        const { entry, fromCache } = await queueTranscriptJob(values.videoInput, values.language, values.format);
         await Clipboard.copy(entry.output);
+
+        if (fromCache) {
+          await launchCommand({
+            ownerOrAuthorName: "caasols",
+            extensionName: "youtube-scribe",
+            name: "transcript-history",
+            type: LaunchType.UserInitiated,
+            arguments: { videoId: entry.videoId },
+          });
+
+          await showToast({
+            style: Toast.Style.Success,
+            title: "Transcript already cached",
+            message: `Opened history for ${entry.videoId}`,
+          });
+          return;
+        }
 
         await showToast({
           style: Toast.Style.Success,
@@ -345,8 +368,26 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
 
       setIsLoading(true);
       try {
-        const entry = await queueTranscriptJob(defaults.videoInput, defaults.language, defaults.format);
+        const { entry, fromCache } = await queueTranscriptJob(defaults.videoInput, defaults.language, defaults.format);
         await Clipboard.copy(entry.output);
+
+        if (fromCache) {
+          await launchCommand({
+            ownerOrAuthorName: "caasols",
+            extensionName: "youtube-scribe",
+            name: "transcript-history",
+            type: LaunchType.UserInitiated,
+            arguments: { videoId: entry.videoId },
+          });
+
+          await showToast({
+            style: Toast.Style.Success,
+            title: "Transcript already cached",
+            message: `Opened history for ${entry.videoId}`,
+          });
+          return;
+        }
+
         await closeMainWindow();
         await showToast({
           style: Toast.Style.Success,

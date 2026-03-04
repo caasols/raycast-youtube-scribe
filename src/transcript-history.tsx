@@ -7,6 +7,7 @@ import {
   LaunchType,
   List,
   LocalStorage,
+  LaunchProps,
   Toast,
   confirmAlert,
   launchCommand,
@@ -59,10 +60,13 @@ function detailMarkdown(entry: HistoryEntry, mode: OutputFormat) {
   return `# ${entry.title}\n\n\`\`\`${mode}\n${output}\n\`\`\``;
 }
 
-export default function Command() {
+type Arguments = { videoId?: string };
+
+export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [viewMode, setViewMode] = useState<OutputFormat>("text");
+  const [searchText, setSearchText] = useState(props.arguments.videoId ?? "");
 
   async function setAndPersistViewMode(mode: OutputFormat) {
     setViewMode(mode);
@@ -155,7 +159,12 @@ export default function Command() {
   }
 
   return (
-    <List isLoading={isLoading} searchBarPlaceholder="Search previously fetched transcripts">
+    <List
+      isLoading={isLoading}
+      searchBarPlaceholder="Search previously fetched transcripts"
+      searchText={searchText}
+      onSearchTextChange={setSearchText}
+    >
       {history.length === 0 ? (
         <List.EmptyView
           icon={Icon.Clock}
