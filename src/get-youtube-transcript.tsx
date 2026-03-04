@@ -14,7 +14,7 @@ import { FormValidation, useForm } from "@raycast/utils";
 import { execFileSync } from "child_process";
 import { useEffect, useMemo, useState } from "react";
 import { YoutubeTranscript } from "youtube-transcript";
-import { patchHistoryEntry, prependHistory } from "./history-store";
+import { loadHistory, patchHistoryEntry, prependHistory } from "./history-store";
 import { HistoryEntry, OutputFormat, TranscriptSegment } from "./types";
 
 type Arguments = {
@@ -185,6 +185,14 @@ function buildJsonOutput(rawSegments: TranscriptSegment[]): string {
   return JSON.stringify(rawSegments, null, 2);
 }
 
+function materializeOutput(entry: HistoryEntry, format: OutputFormat): string {
+  if (entry.rawSegments && entry.rawSegments.length > 0) {
+    return format === "json" ? buildJsonOutput(entry.rawSegments) : buildTextOutput(entry.rawSegments);
+  }
+
+  return entry.output;
+}
+
 async function fetchTranscriptOutput(videoId: string, language: string) {
   const preferredLang = normalizeInput(language);
 
@@ -227,6 +235,13 @@ async function fetchTranscriptOutput(videoId: string, language: string) {
 async function queueTranscriptJob(videoInput: string, language: string, format: OutputFormat): Promise<HistoryEntry> {
   const resolvedUrl = await resolveYoutubeInput(videoInput);
   const videoId = extractVideoId(resolvedUrl);
+
+  const history = await loadHistory();
+  const existing = history.find((entry) => entry.videoId === videoId && entry.status === "finished");
+  if (existing) {
+    return { ...existing, output: materializeOutput(existing, format), format };
+  }
+
   const id = `${Date.now()}-${videoId}`;
 
   const pending: HistoryEntry = {
