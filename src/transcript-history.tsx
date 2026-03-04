@@ -13,7 +13,7 @@ import {
 } from "@raycast/api";
 import { useEffect, useState } from "react";
 import { clearHistory, loadHistory, saveHistory } from "./history-store";
-import { HistoryEntry } from "./types";
+import { HistoryEntry, OutputFormat } from "./types";
 
 function statusAccessory(entry: HistoryEntry) {
   if (entry.status === "finished") {
@@ -27,7 +27,23 @@ function statusAccessory(entry: HistoryEntry) {
   return { icon: { source: Icon.CircleFilled, tintColor: Color.Red }, tooltip: "Fetch failed" };
 }
 
-function detailMarkdown(entry: HistoryEntry) {
+function outputForMode(entry: HistoryEntry, mode: OutputFormat): string {
+  if (!entry.rawSegments || entry.rawSegments.length === 0) {
+    return entry.output;
+  }
+
+  if (mode === "json") {
+    return JSON.stringify(entry.rawSegments, null, 2);
+  }
+
+  return entry.rawSegments
+    .map((segment) => segment.text)
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function detailMarkdown(entry: HistoryEntry, mode: OutputFormat) {
   if (entry.status === "fetching") {
     return `# ${entry.title}\n\nStill fetching transcript...`;
   }
@@ -36,12 +52,14 @@ function detailMarkdown(entry: HistoryEntry) {
     return `# ${entry.title}\n\n## Error log\n\n\`\`\`\n${entry.errorLog ?? "Unknown error"}\n\`\`\``;
   }
 
-  return `# ${entry.title}\n\n\`\`\`${entry.format}\n${entry.output}\n\`\`\``;
+  const output = outputForMode(entry, mode);
+  return `# ${entry.title}\n\n\`\`\`${mode}\n${output}\n\`\`\``;
 }
 
 export default function Command() {
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [viewMode, setViewMode] = useState<OutputFormat>("text");
 
   async function refresh() {
     setIsLoading(true);
@@ -65,7 +83,8 @@ export default function Command() {
   }, [history]);
 
   async function sendToAIChat(entry: HistoryEntry) {
-    await Clipboard.copy(entry.output);
+    const output = outputForMode(entry, viewMode);
+    await Clipboard.copy(output);
 
     const launchCandidates = [
       { ownerOrAuthorName: "raycast", extensionName: "raycast-ai", name: "ai-chat" },
@@ -77,7 +96,7 @@ export default function Command() {
         await launchCommand({
           ...candidate,
           type: LaunchType.UserInitiated,
-          fallbackText: entry.output,
+          fallbackText: output,
         });
 
         await showToast({
@@ -133,15 +152,27 @@ export default function Command() {
             key={entry.id}
             icon={Icon.TextDocument}
             title={entry.title || entry.videoId}
-            subtitle={`${entry.language ?? "auto"} • ${entry.format} • ${entry.segmentCount} segments`}
+            subtitle={`${entry.language ?? "auto"} • ${viewMode} view • ${entry.segmentCount} segments`}
             accessories={[statusAccessory(entry), { text: new Date(entry.createdAt).toLocaleString() }]}
-            detail={<List.Item.Detail markdown={detailMarkdown(entry)} />}
+            detail={<List.Item.Detail markdown={detailMarkdown(entry, viewMode)} />}
             actions={
               <ActionPanel>
                 {entry.status === "finished" ? (
                   <>
                     <Action title="Send to AI Chat" icon={Icon.Stars} onAction={() => sendToAIChat(entry)} />
-                    <Action.CopyToClipboard title="Copy Output" content={entry.output} />
+                    <Action.CopyToClipboard title="Copy Output" content={outputForMode(entry, viewMode)} />
+                    <Action
+                      title="View as Text"
+                      icon={Icon.AlignLeft}
+                      onAction={() => setViewMode("text")}
+                      shortcut={{ modifiers: ["cmd"], key: "1" }}
+                    />
+                    <Action
+                      title="View as JSON"
+                      icon={Icon.Code}
+                      onAction={() => setViewMode("json")}
+                      shortcut={{ modifiers: ["cmd"], key: "2" }}
+                    />
                   </>
                 ) : null}
                 <Action.OpenInBrowser title="Open Video" url={entry.url} />

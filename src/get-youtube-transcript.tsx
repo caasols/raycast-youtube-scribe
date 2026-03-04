@@ -15,7 +15,7 @@ import { execFileSync } from "child_process";
 import { useEffect, useMemo, useState } from "react";
 import { YoutubeTranscript } from "youtube-transcript";
 import { patchHistoryEntry, prependHistory } from "./history-store";
-import { HistoryEntry, OutputFormat } from "./types";
+import { HistoryEntry, OutputFormat, TranscriptSegment } from "./types";
 
 type Arguments = {
   url?: string;
@@ -173,7 +173,19 @@ async function fetchVideoTitle(videoId: string): Promise<string> {
   }
 }
 
-async function fetchTranscriptOutput(videoId: string, language: string, format: OutputFormat) {
+function buildTextOutput(rawSegments: TranscriptSegment[]): string {
+  return rawSegments
+    .map((segment) => segment.text)
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function buildJsonOutput(rawSegments: TranscriptSegment[]): string {
+  return JSON.stringify(rawSegments, null, 2);
+}
+
+async function fetchTranscriptOutput(videoId: string, language: string) {
   const preferredLang = normalizeInput(language);
 
   let chunks;
@@ -187,11 +199,13 @@ async function fetchTranscriptOutput(videoId: string, language: string, format: 
     throw toTranscriptError(error, preferredLang);
   }
 
-  const textOutput = chunks
-    .map((chunk) => chunk.text)
-    .join(" ")
-    .replace(/\s+/g, " ")
-    .trim();
+  const rawSegments: TranscriptSegment[] = chunks.map((chunk) => ({
+    text: chunk.text,
+    start_ms: chunk.offset,
+    duration_ms: chunk.duration,
+  }));
+
+  const textOutput = buildTextOutput(rawSegments);
 
   if (!textOutput) {
     throw new Error(
@@ -201,17 +215,10 @@ async function fetchTranscriptOutput(videoId: string, language: string, format: 
     );
   }
 
-  const output =
-    format === "json"
-      ? JSON.stringify(
-          chunks.map((chunk) => ({ text: chunk.text, start_ms: chunk.offset, duration_ms: chunk.duration })),
-          null,
-          2,
-        )
-      : textOutput;
-
   return {
-    output,
+    rawSegments,
+    textOutput,
+    jsonOutput: buildJsonOutput(rawSegments),
     language: preferredLang || chunks[0]?.lang,
     segmentCount: chunks.length,
   };
@@ -241,11 +248,12 @@ async function queueTranscriptJob(videoInput: string, language: string, format: 
   await patchHistoryEntry(id, { title });
 
   try {
-    const result = await fetchTranscriptOutput(videoId, language, format);
+    const result = await fetchTranscriptOutput(videoId, language);
     const finished = {
       ...pending,
       title,
-      output: result.output,
+      output: format === "json" ? result.jsonOutput : result.textOutput,
+      rawSegments: result.rawSegments,
       language: result.language,
       segmentCount: result.segmentCount,
       status: "finished" as const,
@@ -286,7 +294,6 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
       setIsLoading(true);
       try {
         const entry = await queueTranscriptJob(values.videoInput, values.language, values.format);
-        await prependHistory(entry);
         await Clipboard.copy(entry.output);
 
         await showToast({
@@ -324,7 +331,6 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
       setIsLoading(true);
       try {
         const entry = await queueTranscriptJob(defaults.videoInput, defaults.language, defaults.format);
-        await prependHistory(entry);
         await Clipboard.copy(entry.output);
         await closeMainWindow();
         await showToast({

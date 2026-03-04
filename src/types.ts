@@ -2,6 +2,12 @@ export type OutputFormat = "text" | "json";
 
 export type TranscriptStatus = "fetching" | "finished" | "error";
 
+export type TranscriptSegment = {
+  text: string;
+  start_ms: number;
+  duration_ms: number;
+};
+
 export type HistoryEntry = {
   id: string;
   createdAt: string;
@@ -12,6 +18,7 @@ export type HistoryEntry = {
   format: OutputFormat;
   segmentCount: number;
   output: string;
+  rawSegments?: TranscriptSegment[];
   status: TranscriptStatus;
   errorLog?: string;
 };
