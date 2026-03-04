@@ -54,6 +54,16 @@ export default function Command() {
     refresh();
   }, []);
 
+  useEffect(() => {
+    if (!history.some((entry) => entry.status === "fetching")) return;
+
+    const timer = setInterval(() => {
+      refresh();
+    }, 1500);
+
+    return () => clearInterval(timer);
+  }, [history]);
+
   async function sendToAIChat(entry: HistoryEntry) {
     await Clipboard.copy(entry.output);
 
