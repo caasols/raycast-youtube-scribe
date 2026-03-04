@@ -6,6 +6,7 @@ import {
   Icon,
   LaunchType,
   List,
+  LocalStorage,
   Toast,
   confirmAlert,
   launchCommand,
@@ -14,6 +15,8 @@ import {
 import { useEffect, useState } from "react";
 import { clearHistory, loadHistory, saveHistory } from "./history-store";
 import { HistoryEntry, OutputFormat } from "./types";
+
+const VIEW_MODE_KEY = "transcript-history-view-mode";
 
 function statusAccessory(entry: HistoryEntry) {
   if (entry.status === "finished") {
@@ -61,6 +64,11 @@ export default function Command() {
   const [isLoading, setIsLoading] = useState(true);
   const [viewMode, setViewMode] = useState<OutputFormat>("text");
 
+  async function setAndPersistViewMode(mode: OutputFormat) {
+    setViewMode(mode);
+    await LocalStorage.setItem(VIEW_MODE_KEY, mode);
+  }
+
   async function refresh() {
     setIsLoading(true);
     const entries = await loadHistory();
@@ -69,7 +77,15 @@ export default function Command() {
   }
 
   useEffect(() => {
-    refresh();
+    async function bootstrap() {
+      const savedMode = await LocalStorage.getItem<string>(VIEW_MODE_KEY);
+      if (savedMode === "text" || savedMode === "json") {
+        setViewMode(savedMode);
+      }
+      await refresh();
+    }
+
+    bootstrap();
   }, []);
 
   useEffect(() => {
@@ -164,13 +180,13 @@ export default function Command() {
                     <Action
                       title="View as Text"
                       icon={Icon.AlignLeft}
-                      onAction={() => setViewMode("text")}
+                      onAction={() => setAndPersistViewMode("text")}
                       shortcut={{ modifiers: ["cmd"], key: "1" }}
                     />
                     <Action
                       title="View as JSON"
                       icon={Icon.Code}
-                      onAction={() => setViewMode("json")}
+                      onAction={() => setAndPersistViewMode("json")}
                       shortcut={{ modifiers: ["cmd"], key: "2" }}
                     />
                   </>
