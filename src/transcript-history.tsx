@@ -6,6 +6,7 @@ import {
   Icon,
   LaunchType,
   List,
+  Detail,
   LocalStorage,
   LaunchProps,
   Toast,
@@ -103,6 +104,40 @@ function TranscriptSearchView({ entry }: { entry: HistoryEntry }) {
   );
 }
 
+function TranscriptDetailView({
+  entry,
+  mode,
+  onSummarize,
+  onSendToAIChat,
+}: {
+  entry: HistoryEntry;
+  mode: OutputFormat;
+  onSummarize: () => void;
+  onSendToAIChat: () => void;
+}) {
+  return (
+    <Detail
+      markdown={detailMarkdown(entry, mode)}
+      actions={
+        <ActionPanel>
+          {entry.status === "finished" ? (
+            <>
+              <Action title="Summarize Transcript" icon={Icon.BulletPoints} onAction={onSummarize} />
+              <Action title="Send to AI Chat" icon={Icon.Stars} onAction={onSendToAIChat} />
+              <Action.CopyToClipboard title="Copy Output" content={outputForMode(entry, mode)} />
+              <Action.Push title="Search in Transcript" icon={Icon.MagnifyingGlass} target={<TranscriptSearchView entry={entry} />} />
+            </>
+          ) : null}
+          {entry.status === "error" ? (
+            <Action.CopyToClipboard title="Copy Error Log" content={entry.errorLog ?? "Unknown error"} />
+          ) : null}
+          <Action.OpenInBrowser title="Open Video" url={entry.url} />
+        </ActionPanel>
+      }
+    />
+  );
+}
+
 type Arguments = { videoId?: string };
 
 export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
@@ -145,11 +180,19 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
     return () => clearInterval(timer);
   }, [history]);
 
-  async function sendToAIChat(entry: HistoryEntry) {
+  async function openAIChat(entry: HistoryEntry, mode: "send" | "summarize") {
     const output = outputForMode(entry, viewMode);
-    await Clipboard.copy(output);
+
+    const prompt =
+      mode === "summarize"
+        ? `summarize the points\n\nVideo: ${entry.title}\nURL: ${entry.url}\n\nTranscript:\n${output}`
+        : `Video: ${entry.title}\nURL: ${entry.url}\n\nTranscript:\n${output}`;
+
+    await Clipboard.copy(prompt);
 
     const launchCandidates = [
+      { ownerOrAuthorName: "raycast", extensionName: "raycast-ai", name: "send-text-to-ai-chat" },
+      { ownerOrAuthorName: "raycast", extensionName: "ai", name: "send-text-to-ai-chat" },
       { ownerOrAuthorName: "raycast", extensionName: "raycast-ai", name: "ai-chat" },
       { ownerOrAuthorName: "raycast", extensionName: "ai", name: "ai-chat" },
     ];
@@ -159,13 +202,13 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
         await launchCommand({
           ...candidate,
           type: LaunchType.UserInitiated,
-          fallbackText: output,
+          fallbackText: prompt,
         });
 
         await showToast({
           style: Toast.Style.Success,
-          title: "Sent to AI Chat",
-          message: "Transcript copied and AI Chat opened",
+          title: mode === "summarize" ? "Summarizing in AI Chat" : "Sent to AI Chat",
+          message: "Transcript prepared and AI Chat opened",
         });
         return;
       } catch {
@@ -178,6 +221,14 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
       title: "Transcript copied",
       message: "Could not auto-open AI Chat. Open Raycast AI Chat and paste.",
     });
+  }
+
+  async function summarizeTranscript(entry: HistoryEntry) {
+    await openAIChat(entry, "summarize");
+  }
+
+  async function sendToAIChat(entry: HistoryEntry) {
+    await openAIChat(entry, "send");
   }
 
   async function removeEntry(id: string) {
@@ -210,6 +261,7 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
     <List
       isLoading={isLoading}
       filtering={false}
+      isShowingDetail
       searchBarPlaceholder="Search video titles (fuzzy)"
       searchText={searchText}
       onSearchTextChange={setSearchText}
@@ -231,9 +283,32 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
             detail={<List.Item.Detail markdown={detailMarkdown(entry, viewMode)} />}
             actions={
               <ActionPanel>
+                <Action.Push
+                  title="Open Details"
+                  icon={Icon.Sidebar}
+                  target={
+                    <TranscriptDetailView
+                      entry={entry}
+                      mode={viewMode}
+                      onSummarize={() => summarizeTranscript(entry)}
+                      onSendToAIChat={() => sendToAIChat(entry)}
+                    />
+                  }
+                />
                 {entry.status === "finished" ? (
                   <>
-                    <Action title="Send to AI Chat" icon={Icon.Stars} onAction={() => sendToAIChat(entry)} />
+                    <Action
+                      title="Summarize Transcript"
+                      icon={Icon.BulletPoints}
+                      onAction={() => summarizeTranscript(entry)}
+                      shortcut={{ modifiers: ["cmd", "shift"], key: "s" }}
+                    />
+                    <Action
+                      title="Send to AI Chat"
+                      icon={Icon.Stars}
+                      onAction={() => sendToAIChat(entry)}
+                      shortcut={{ modifiers: ["cmd", "shift"], key: "a" }}
+                    />
                     <Action.CopyToClipboard title="Copy Output" content={outputForMode(entry, viewMode)} />
                     <Action
                       title="View as Text"
@@ -254,8 +329,23 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
                       shortcut={{ modifiers: ["cmd"], key: "f" }}
                     />
                   </>
-                ) : null}
-                <Action.OpenInBrowser title="Open Video" url={entry.url} />
+                ) : (
+                  <>
+                    <Action
+                      title="Refresh"
+                      icon={Icon.ArrowClockwise}
+                      onAction={refresh}
+                    />
+                    {entry.status === "error" ? (
+                      <Action.CopyToClipboard
+                        title="Copy Error Log"
+                        content={entry.errorLog ?? "Unknown error"}
+                        shortcut={{ modifiers: ["cmd"], key: "c" }}
+                      />
+                    ) : null}
+                  </>
+                )}
+                <Action.OpenInBrowser title="Open Video" url={entry.url} shortcut={{ modifiers: ["cmd"], key: "o" }} />
                 <Action
                   title="Remove from History"
                   style={Action.Style.Destructive}
@@ -269,7 +359,7 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
                   shortcut={{ modifiers: ["cmd", "shift"], key: "backspace" }}
                   onAction={removeAll}
                 />
-                <Action title="Refresh" icon={Icon.ArrowClockwise} onAction={refresh} />
+                {entry.status === "finished" ? <Action title="Refresh" icon={Icon.ArrowClockwise} onAction={refresh} /> : null}
               </ActionPanel>
             }
           />
