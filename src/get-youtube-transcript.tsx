@@ -29,6 +29,8 @@ type FormValues = {
   format: OutputFormat;
 };
 
+const BUILD_TAG = "diag-2026-03-04b";
+
 const BROWSER_SCRIPTS: Record<string, string> = {
   "Google Chrome": 'tell application "Google Chrome" to return URL of active tab of front window',
   "Google Chrome Canary": 'tell application "Google Chrome Canary" to return URL of active tab of front window',
@@ -111,32 +113,33 @@ function toTranscriptError(error: unknown, preferredLang: string): Error {
   if (!(error instanceof Error)) return new Error("Failed to fetch transcript due to an unknown error.");
 
   const code = error.name;
+  const details = error.message ? ` [${code}] ${error.message}` : ` [${code}]`;
 
   if (code === "YoutubeTranscriptDisabledError") {
-    return new Error("This video has transcripts disabled by the uploader.");
+    return new Error(`This video has transcripts disabled by the uploader.${details}`);
   }
 
   if (code === "YoutubeTranscriptVideoUnavailableError") {
-    return new Error("This video is unavailable (private, removed, or restricted).");
+    return new Error(`This video is unavailable (private, removed, or restricted).${details}`);
   }
 
   if (code === "YoutubeTranscriptNotAvailableLanguageError") {
     return new Error(
       preferredLang
-        ? `No transcript is available for language '${preferredLang}'. Try leaving language blank to auto-detect.`
-        : "No transcript is available for the requested language.",
+        ? `No transcript is available for language '${preferredLang}'. Try leaving language blank to auto-detect.${details}`
+        : `No transcript is available for the requested language.${details}`,
     );
   }
 
   if (code === "YoutubeTranscriptNotAvailableError") {
-    return new Error("No transcript track is available for this video.");
+    return new Error(`No transcript track is available for this video.${details}`);
   }
 
   if (code === "YoutubeTranscriptTooManyRequestError") {
-    return new Error("YouTube is rate-limiting transcript requests right now. Please try again in a moment.");
+    return new Error(`YouTube is rate-limiting transcript requests right now. Please try again in a moment.${details}`);
   }
 
-  return new Error(error.message || "Failed to fetch transcript.");
+  return new Error((error.message || "Failed to fetch transcript.") + details);
 }
 
 async function buildHistoryEntry(videoInput: string, language: string, format: OutputFormat): Promise<HistoryEntry> {
@@ -226,7 +229,7 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
       } catch (error) {
         await showToast({
           style: Toast.Style.Failure,
-          title: "Failed to fetch transcript",
+          title: `Failed to fetch transcript (${BUILD_TAG})`,
           message: error instanceof Error ? error.message : "Unknown error",
         });
       } finally {
@@ -260,7 +263,7 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
       } catch (error) {
         await showToast({
           style: Toast.Style.Failure,
-          title: "Failed to fetch transcript",
+          title: `Failed to fetch transcript (${BUILD_TAG})`,
           message: error instanceof Error ? error.message : "Unknown error",
         });
       } finally {
@@ -280,7 +283,7 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
         </ActionPanel>
       }
     >
-      <Form.Description text="Leave URL empty to use the focused YouTube tab in your browser." />
+      <Form.Description text={`Leave URL empty to use the focused YouTube tab in your browser. (${BUILD_TAG})`} />
       <Form.TextField
         title="YouTube URL or Video ID"
         placeholder="Optional: auto-detect from focused tab if empty"
