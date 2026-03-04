@@ -13,11 +13,25 @@ import {
   launchCommand,
   showToast,
 } from "@raycast/api";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { clearHistory, loadHistory, saveHistory } from "./history-store";
 import { HistoryEntry, OutputFormat } from "./types";
 
 const VIEW_MODE_KEY = "transcript-history-view-mode";
+
+function fuzzyMatch(text: string, query: string): boolean {
+  const t = text.toLowerCase();
+  const q = query.toLowerCase().trim();
+  if (!q) return true;
+
+  let i = 0;
+  for (const ch of q) {
+    i = t.indexOf(ch, i);
+    if (i === -1) return false;
+    i += 1;
+  }
+  return true;
+}
 
 function statusAccessory(entry: HistoryEntry) {
   if (entry.status === "finished") {
@@ -58,6 +72,35 @@ function detailMarkdown(entry: HistoryEntry, mode: OutputFormat) {
 
   const output = outputForMode(entry, mode);
   return `# ${entry.title}\n\n\`\`\`${mode}\n${output}\n\`\`\``;
+}
+
+function TranscriptSearchView({ entry }: { entry: HistoryEntry }) {
+  const [query, setQuery] = useState("");
+
+  const segments = entry.rawSegments ?? [];
+  const matches = useMemo(() => {
+    if (!query.trim()) return segments.slice(0, 200);
+    return segments.filter((s) => fuzzyMatch(s.text, query));
+  }, [segments, query]);
+
+  return (
+    <List
+      searchText={query}
+      onSearchTextChange={setQuery}
+      isLoading={false}
+      filtering={false}
+      searchBarPlaceholder="Search inside transcript (fuzzy)"
+    >
+      {matches.map((segment, idx) => (
+        <List.Item
+          key={`${entry.id}-${idx}-${segment.start_ms}`}
+          icon={Icon.TextDocument}
+          title={segment.text}
+          accessories={[{ text: `${Math.round(segment.start_ms / 1000)}s` }]}
+        />
+      ))}
+    </List>
+  );
 }
 
 type Arguments = { videoId?: string };
@@ -158,21 +201,27 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
     await showToast({ style: Toast.Style.Success, title: "History cleared" });
   }
 
+  const filteredHistory = useMemo(() => {
+    if (!searchText.trim()) return history;
+    return history.filter((entry) => fuzzyMatch(entry.title || entry.videoId, searchText));
+  }, [history, searchText]);
+
   return (
     <List
       isLoading={isLoading}
-      searchBarPlaceholder="Search previously fetched transcripts"
+      filtering={false}
+      searchBarPlaceholder="Search video titles (fuzzy)"
       searchText={searchText}
       onSearchTextChange={setSearchText}
     >
-      {history.length === 0 ? (
+      {filteredHistory.length === 0 ? (
         <List.EmptyView
           icon={Icon.Clock}
           title="No history yet"
           description="Run 'Get YouTube Transcript' first. This command shows all transcripts fetched previously."
         />
       ) : (
-        history.map((entry) => (
+        filteredHistory.map((entry) => (
           <List.Item
             key={entry.id}
             icon={Icon.TextDocument}
@@ -197,6 +246,12 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
                       icon={Icon.Code}
                       onAction={() => setAndPersistViewMode("json")}
                       shortcut={{ modifiers: ["cmd"], key: "2" }}
+                    />
+                    <Action.Push
+                      title="Search in Transcript"
+                      icon={Icon.MagnifyingGlass}
+                      target={<TranscriptSearchView entry={entry} />}
+                      shortcut={{ modifiers: ["cmd"], key: "f" }}
                     />
                   </>
                 ) : null}
