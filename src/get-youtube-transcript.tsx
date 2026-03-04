@@ -14,7 +14,7 @@ import { FormValidation, useForm } from "@raycast/utils";
 import { execFileSync } from "child_process";
 import { useEffect, useMemo, useState } from "react";
 import { YoutubeTranscript } from "youtube-transcript";
-import { prependHistory } from "./history-store";
+import { patchHistoryEntry, prependHistory } from "./history-store";
 import { HistoryEntry, OutputFormat } from "./types";
 
 type Arguments = {
@@ -51,6 +51,14 @@ function normalizeInput(input?: string): string {
 
 function toOutputFormat(value?: string): OutputFormat {
   return value?.toLowerCase() === "json" ? "json" : "text";
+}
+
+function extractYoutubeUrlFromText(text?: string): string | null {
+  const value = normalizeInput(text);
+  if (!value) return null;
+
+  const match = value.match(/https?:\/\/(?:www\.)?(?:youtube\.com|youtu\.be)\/[^\s)]+/i);
+  return match?.[0] ?? null;
 }
 
 function extractVideoId(input: string): string {
@@ -142,17 +150,34 @@ function toTranscriptError(error: unknown, preferredLang: string): Error {
   return new Error((error.message || "Failed to fetch transcript.") + details);
 }
 
-async function buildHistoryEntry(videoInput: string, language: string, format: OutputFormat): Promise<HistoryEntry> {
+async function resolveYoutubeInput(videoInput: string): Promise<string> {
   const manualUrl = normalizeInput(videoInput);
-  const preferredLang = normalizeInput(language);
+  if (manualUrl) return manualUrl;
 
-  const resolvedUrl = manualUrl || getFocusedYoutubeUrl().url;
-  const videoId = extractVideoId(resolvedUrl);
+  const clipboardText = await Clipboard.readText();
+  const clipboardUrl = extractYoutubeUrlFromText(clipboardText ?? undefined);
+  if (clipboardUrl) return clipboardUrl;
+
+  return getFocusedYoutubeUrl().url;
+}
+
+async function fetchVideoTitle(videoId: string): Promise<string> {
+  try {
+    const oembedUrl = `https://www.youtube.com/oembed?url=${encodeURIComponent(`https://www.youtube.com/watch?v=${videoId}`)}&format=json`;
+    const response = await fetch(oembedUrl);
+    if (!response.ok) return videoId;
+    const data = (await response.json()) as { title?: string };
+    return normalizeInput(data.title) || videoId;
+  } catch {
+    return videoId;
+  }
+}
+
+async function fetchTranscriptOutput(videoId: string, language: string, format: OutputFormat) {
+  const preferredLang = normalizeInput(language);
 
   let chunks;
   try {
-    // Some videos return no rows when a requested language is unavailable.
-    // If that happens, retry without language pinning before failing.
     chunks = await YoutubeTranscript.fetchTranscript(videoId, preferredLang ? { lang: preferredLang } : undefined);
 
     if (chunks.length === 0 && preferredLang) {
@@ -186,15 +211,60 @@ async function buildHistoryEntry(videoInput: string, language: string, format: O
       : textOutput;
 
   return {
-    id: `${Date.now()}-${videoId}`,
+    output,
+    language: preferredLang || chunks[0]?.lang,
+    segmentCount: chunks.length,
+  };
+}
+
+async function queueTranscriptJob(videoInput: string, language: string, format: OutputFormat): Promise<HistoryEntry> {
+  const resolvedUrl = await resolveYoutubeInput(videoInput);
+  const videoId = extractVideoId(resolvedUrl);
+  const id = `${Date.now()}-${videoId}`;
+
+  const pending: HistoryEntry = {
+    id,
     createdAt: new Date().toISOString(),
     videoId,
     url: `https://www.youtube.com/watch?v=${videoId}`,
-    language: preferredLang || chunks[0]?.lang,
+    title: videoId,
+    language: normalizeInput(language) || undefined,
     format,
-    segmentCount: chunks.length,
-    output,
+    segmentCount: 0,
+    output: "Still fetching transcript...",
+    status: "fetching",
   };
+
+  await prependHistory(pending);
+
+  const title = await fetchVideoTitle(videoId);
+  await patchHistoryEntry(id, { title });
+
+  try {
+    const result = await fetchTranscriptOutput(videoId, language, format);
+    const finished = {
+      ...pending,
+      title,
+      output: result.output,
+      language: result.language,
+      segmentCount: result.segmentCount,
+      status: "finished" as const,
+      errorLog: undefined,
+    };
+    await patchHistoryEntry(id, finished);
+    return finished;
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    const failed: HistoryEntry = {
+      ...pending,
+      title,
+      status: "error",
+      output: `Failed to fetch transcript.`,
+      errorLog: errorMessage,
+    };
+    await patchHistoryEntry(id, failed);
+    throw error;
+  }
 }
 
 export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
@@ -215,7 +285,7 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
     onSubmit: async (values) => {
       setIsLoading(true);
       try {
-        const entry = await buildHistoryEntry(values.videoInput, values.language, values.format);
+        const entry = await queueTranscriptJob(values.videoInput, values.language, values.format);
         await prependHistory(entry);
         await Clipboard.copy(entry.output);
 
@@ -246,12 +316,14 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
       if (bootstrapped) return;
       setBootstrapped(true);
 
+      const clipboardText = await Clipboard.readText();
+      const hasAutoUrl = Boolean(extractYoutubeUrlFromText(clipboardText ?? undefined));
       const hasAnyArgs = Boolean(defaults.videoInput || defaults.language || props.arguments.format);
-      if (!hasAnyArgs) return;
+      if (!hasAnyArgs && !hasAutoUrl) return;
 
       setIsLoading(true);
       try {
-        const entry = await buildHistoryEntry(defaults.videoInput, defaults.language, defaults.format);
+        const entry = await queueTranscriptJob(defaults.videoInput, defaults.language, defaults.format);
         await prependHistory(entry);
         await Clipboard.copy(entry.output);
         await closeMainWindow();
@@ -283,7 +355,7 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
         </ActionPanel>
       }
     >
-      <Form.Description text={`Leave URL empty to use the focused YouTube tab in your browser. (${BUILD_TAG})`} />
+      <Form.Description text={`Leave URL empty to auto-detect from clipboard first, then focused browser tab. (${BUILD_TAG})`} />
       <Form.TextField
         title="YouTube URL or Video ID"
         placeholder="Optional: auto-detect from focused tab if empty"
