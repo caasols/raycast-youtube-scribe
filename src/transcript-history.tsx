@@ -87,6 +87,12 @@ function rowMetadata(entry: HistoryEntry) {
   return `You • ${durationLabel(entry)} • ${formatWhen(entry.createdAt)}`;
 }
 
+function rowTitle(entry: HistoryEntry) {
+  const base = entry.title || entry.videoId;
+  const compact = base.length > 72 ? `${base.slice(0, 72)}…` : base;
+  return `${compact}\n${rowMetadata(entry)}`;
+}
+
 function outputForMode(entry: HistoryEntry, mode: OutputFormat): string {
   if (!entry.rawSegments || entry.rawSegments.length === 0) {
     return entry.output;
@@ -355,7 +361,7 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
     <List.Item
       key={entry.id}
       icon={{ source: videoThumbnailUrl(entry.videoId), fallback: Icon.Video }}
-      title={`${entry.title || entry.videoId}\n${rowMetadata(entry)}`}
+      title={rowTitle(entry)}
       accessories={[
         {
           text: statusEmoji(entry),
