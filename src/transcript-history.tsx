@@ -241,9 +241,6 @@ function TranscriptDetailView({
               <Action.Push title="Search in Transcript" icon={Icon.MagnifyingGlass} target={<TranscriptSearchView entry={entry} />} />
             </>
           ) : null}
-          {entry.status === "error" ? (
-            <Action.CopyToClipboard title="Copy Error Log" content={entry.errorLog ?? "Unknown error"} />
-          ) : null}
           <Action.CopyToClipboard title="Copy Debug Log" content={entry.debugLog ?? "No debug data"} />
           <Action.CopyToClipboard title="Copy Bug Report" content={buildBugReport(entry)} />
           <Action.OpenInBrowser title="Open Video" url={entry.url} />
@@ -437,13 +434,6 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
           ) : (
             <>
               <Action title="Refresh" icon={Icon.ArrowClockwise} onAction={refresh} />
-              {entry.status === "error" ? (
-                <Action.CopyToClipboard
-                  title="Copy Error Log"
-                  content={entry.errorLog ?? "Unknown error"}
-                  shortcut={{ modifiers: ["cmd"], key: "c" }}
-                />
-              ) : null}
               <Action.CopyToClipboard title="Copy Debug Log" content={entry.debugLog ?? "No debug data"} />
               <Action.CopyToClipboard title="Copy Bug Report" content={buildBugReport(entry)} />
             </>
