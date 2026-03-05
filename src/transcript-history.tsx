@@ -119,23 +119,6 @@ function formatWhen(createdAt: string) {
   return date.toLocaleDateString();
 }
 
-function buildBugReport(entry: HistoryEntry): string {
-  const payload = {
-    videoId: entry.videoId,
-    title: entry.title,
-    url: entry.url,
-    createdAt: entry.createdAt,
-    status: entry.status,
-    language: entry.language ?? "auto",
-    format: entry.format,
-    segmentCount: entry.segmentCount,
-    errorLog: entry.errorLog ?? null,
-    debugLog: entry.debugLog ?? null,
-  };
-
-  return JSON.stringify(payload, null, 2);
-}
-
 function detailMarkdown(entry: HistoryEntry, mode: OutputFormat) {
   const metadata = [
     `- **Status:** ${statusAccessory(entry).text}`,
@@ -242,7 +225,6 @@ function TranscriptDetailView({
             </>
           ) : null}
           <Action.CopyToClipboard title="Copy Debug Log" content={entry.debugLog ?? "No debug data"} />
-          <Action.CopyToClipboard title="Copy Bug Report" content={buildBugReport(entry)} />
           <Action.OpenInBrowser title="Open Video" url={entry.url} />
         </ActionPanel>
       }
@@ -429,13 +411,11 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
                 shortcut={{ modifiers: ["cmd"], key: "f" }}
               />
               <Action.CopyToClipboard title="Copy Debug Log" content={entry.debugLog ?? "No debug data"} />
-              <Action.CopyToClipboard title="Copy Bug Report" content={buildBugReport(entry)} />
             </>
           ) : (
             <>
               <Action title="Refresh" icon={Icon.ArrowClockwise} onAction={refresh} />
               <Action.CopyToClipboard title="Copy Debug Log" content={entry.debugLog ?? "No debug data"} />
-              <Action.CopyToClipboard title="Copy Bug Report" content={buildBugReport(entry)} />
             </>
           )}
           <Action.OpenInBrowser title="Open Video" url={entry.url} shortcut={{ modifiers: ["cmd"], key: "o" }} />
