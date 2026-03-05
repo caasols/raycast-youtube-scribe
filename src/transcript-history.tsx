@@ -88,8 +88,7 @@ function rowMetadata(entry: HistoryEntry) {
 }
 
 function rowTitle(entry: HistoryEntry) {
-  const base = entry.title || entry.videoId;
-  return `${base}\n${rowMetadata(entry)}`;
+  return entry.title || entry.videoId;
 }
 
 function outputForMode(entry: HistoryEntry, mode: OutputFormat): string {
@@ -361,6 +360,7 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
       key={entry.id}
       icon={{ source: videoThumbnailUrl(entry.videoId), fallback: Icon.Video }}
       title={rowTitle(entry)}
+      subtitle={rowMetadata(entry)}
       accessories={[
         {
           text: statusEmoji(entry),
