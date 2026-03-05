@@ -363,10 +363,6 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
       subtitle={rowMetadata(entry)}
       accessories={[
         {
-          text: `META: ${rowMetadata(entry)}`,
-          tooltip: "Debug fallback metadata",
-        },
-        {
           text: statusEmoji(entry),
           tooltip: statusAccessory(entry).tooltip,
         },
