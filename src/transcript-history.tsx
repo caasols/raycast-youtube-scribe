@@ -392,12 +392,11 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
       title={entry.title || entry.videoId}
       subtitle={rowDescription(entry)}
       accessories={[
-        { text: "You", tooltip: "User" },
-        { text: durationLabel(entry), tooltip: "Approx. video duration" },
-        { text: formatWhen(entry.createdAt), tooltip: new Date(entry.createdAt).toLocaleString() },
-        { text: statusEmoji(entry), tooltip: statusAccessory(entry).tooltip },
+        {
+          text: `You • ${durationLabel(entry)} • ${statusEmoji(entry)} • ${formatWhen(entry.createdAt)}`,
+          tooltip: `User • Duration • Status • Saved ${new Date(entry.createdAt).toLocaleString()}`,
+        },
       ]}
-      detail={<List.Item.Detail markdown={detailMarkdown(entry, viewMode)} />}
       actions={
         <ActionPanel>
           <Action.Push
@@ -485,8 +484,8 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
   return (
     <List
       isLoading={isLoading}
+      isShowingDetail={false}
       filtering={false}
-      isShowingDetail
       searchBarPlaceholder="Search video titles (fuzzy)"
       searchText={searchText}
       onSearchTextChange={setSearchText}
