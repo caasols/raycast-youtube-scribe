@@ -105,6 +105,7 @@ type InputResolution = {
   url: string;
   source: "manual" | "clipboard" | "focused-tab";
   app?: string;
+  tabTitle?: string;
   debug: DebugStep[];
 };
 
@@ -121,7 +122,7 @@ function toDebugJson(context: Record<string, unknown>, steps: DebugStep[]): stri
   );
 }
 
-function getFocusedYoutubeUrl(): { url: string; app: string } {
+function getFocusedTabContext(): { url: string; title: string; app: string } {
   if (process.platform !== "darwin") {
     throw new Error("Focused browser detection is only available on macOS. Paste the YouTube URL instead.");
   }
@@ -138,11 +139,20 @@ function getFocusedYoutubeUrl(): { url: string; app: string } {
 
   const url = runAppleScript(browserScript);
   if (!url) throw new Error(`Could not retrieve the current tab URL from ${app}.`);
-  if (!url.includes("youtube.com") && !url.includes("youtu.be")) {
-    throw new Error(`Focused tab in ${app} is not a YouTube page. Paste a YouTube URL or focus a YouTube tab.`);
+
+  const titleScript = browserScript.replace("URL", "title");
+  const title = runAppleScript(titleScript) ?? "Untitled tab";
+
+  return { url, title, app };
+}
+
+function getFocusedYoutubeUrl(): { url: string; app: string; title: string } {
+  const focused = getFocusedTabContext();
+  if (!focused.url.includes("youtube.com") && !focused.url.includes("youtu.be")) {
+    throw new Error(`Focused tab in ${focused.app} is not a YouTube page. Paste a YouTube URL or focus a YouTube tab.`);
   }
 
-  return { url, app };
+  return focused;
 }
 
 function toTranscriptError(error: unknown, preferredLang: string): Error {
@@ -200,8 +210,8 @@ async function resolveYoutubeInput(videoInput: string): Promise<InputResolution>
 
   try {
     const focused = getFocusedYoutubeUrl();
-    debug.push({ step: "focused-tab", ok: true, details: { app: focused.app, value: focused.url } });
-    return { url: focused.url, source: "focused-tab", app: focused.app, debug };
+    debug.push({ step: "focused-tab", ok: true, details: { app: focused.app, value: focused.url, title: focused.title } });
+    return { url: focused.url, source: "focused-tab", app: focused.app, tabTitle: focused.title, debug };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown focused-tab detection error";
     debug.push({ step: "focused-tab", ok: false, details: { error: message } });
@@ -282,6 +292,44 @@ async function fetchTranscriptOutput(videoId: string, language: string) {
   };
 }
 
+async function appendResolutionErrorEntry(
+  inputResolution: InputResolution,
+  language: string,
+  format: OutputFormat,
+  errorMessage: string,
+): Promise<HistoryEntry> {
+  const id = `${Date.now()}-input-error`;
+  const entry: HistoryEntry = {
+    id,
+    createdAt: new Date().toISOString(),
+    videoId: `input-error-${id}`,
+    url: inputResolution.url,
+    title: inputResolution.tabTitle || inputResolution.url || "Unsupported input",
+    language: normalizeInput(language) || undefined,
+    format,
+    segmentCount: 0,
+    output: "Failed to fetch transcript.",
+    status: "error",
+    errorLog: errorMessage,
+    debugLog: toDebugJson(
+      {
+        phase: "extract-video-id",
+        source: inputResolution.source,
+        app: inputResolution.app,
+        tabTitle: inputResolution.tabTitle,
+        resolvedUrl: inputResolution.url,
+        requestedLanguage: normalizeInput(language) || "auto",
+        format,
+        error: errorMessage,
+      },
+      [...inputResolution.debug, { step: "history-write-input-error", ok: true }],
+    ),
+  };
+
+  await prependHistory(entry);
+  return entry;
+}
+
 async function queueTranscriptJob(
   videoInput: string,
   language: string,
@@ -295,6 +343,11 @@ async function queueTranscriptJob(
     videoId = extractVideoId(resolvedUrl);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Please provide a valid YouTube URL or video ID.";
+
+    if (inputResolution.source === "focused-tab") {
+      await appendResolutionErrorEntry(inputResolution, language, format, message);
+    }
+
     throw new Error(
       `${message}\n\nDebug trace:\n${toDebugJson({ phase: "extract-video-id", resolvedUrl }, inputResolution.debug)}`,
     );
@@ -479,16 +532,16 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
       const hasAutoUrl = Boolean(extractYoutubeUrlFromText(clipboardText ?? undefined));
       const hasAnyArgs = Boolean(defaults.videoInput || defaults.language || props.arguments.format);
 
-      let hasFocusedYoutube = false;
+      let hasFocusedTab = false;
       if (!hasAnyArgs && !hasAutoUrl) {
         try {
-          hasFocusedYoutube = Boolean(getFocusedYoutubeUrl().url);
+          hasFocusedTab = Boolean(getFocusedTabContext().url);
         } catch {
-          hasFocusedYoutube = false;
+          hasFocusedTab = false;
         }
       }
 
-      if (!hasAnyArgs && !hasAutoUrl && !hasFocusedYoutube) return;
+      if (!hasAnyArgs && !hasAutoUrl && !hasFocusedTab) return;
 
       setIsLoading(true);
       try {
@@ -541,7 +594,7 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
         </ActionPanel>
       }
     >
-      <Form.Description text={`Leave URL empty to auto-detect from clipboard first, then focused browser tab. (${BUILD_TAG})`} />
+      <Form.Description text={`Leave URL empty to auto-detect from clipboard first, then focused browser tab (logs non-YouTube tabs for debugging). (${BUILD_TAG})`} />
       <Form.TextField
         title="YouTube URL or Video ID"
         placeholder="Optional: auto-detect from focused tab if empty"
