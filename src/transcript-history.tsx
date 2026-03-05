@@ -6,6 +6,7 @@ import {
   Icon,
   LaunchType,
   List,
+  Grid,
   Detail,
   LocalStorage,
   LaunchProps,
@@ -442,32 +443,26 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
   );
 
   const renderItem = (entry: HistoryEntry) => (
-    <List.Item
+    <Grid.Item
       key={entry.id}
-      icon={{ source: videoThumbnailUrl(entry.videoId), fallback: Icon.Video }}
+      content={{ source: videoThumbnailUrl(entry.videoId), fallback: Icon.Video }}
       title={rowTitle(entry)}
-      detail={<List.Item.Detail markdown={rowDetailMarkdown(entry)} />}
-      accessories={[
-        {
-          text: statusEmoji(entry),
-          tooltip: statusAccessory(entry).tooltip,
-        },
-      ]}
+      subtitle={rowMetadata(entry)}
+      accessories={[{ text: statusEmoji(entry), tooltip: statusAccessory(entry).tooltip }]}
       actions={rowActions(entry)}
     />
   );
 
   return (
-    <List
+    <Grid
       isLoading={isLoading}
-      isShowingDetail={true}
       filtering={false}
       searchBarPlaceholder="Search video titles (fuzzy)"
       searchText={searchText}
       onSearchTextChange={setSearchText}
     >
       {filteredHistory.length === 0 ? (
-        <List.EmptyView
+        <Grid.EmptyView
           icon={Icon.Clock}
           title="No history yet"
           description="Run 'Get YouTube Transcript' first. This command shows all transcripts fetched previously."
@@ -475,6 +470,6 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
       ) : (
         filteredHistory.map(renderItem)
       )}
-    </List>
+    </Grid>
   );
 }
