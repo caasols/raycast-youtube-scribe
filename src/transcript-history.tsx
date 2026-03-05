@@ -89,8 +89,7 @@ function rowMetadata(entry: HistoryEntry) {
 
 function rowTitle(entry: HistoryEntry) {
   const base = entry.title || entry.videoId;
-  const compact = base.length > 72 ? `${base.slice(0, 72)}…` : base;
-  return `${compact}\n${rowMetadata(entry)}`;
+  return `${base}\n${rowMetadata(entry)}`;
 }
 
 function outputForMode(entry: HistoryEntry, mode: OutputFormat): string {
