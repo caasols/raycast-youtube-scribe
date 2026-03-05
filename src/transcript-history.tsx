@@ -220,10 +220,10 @@ function TranscriptDetailView({
       markdown={detailMarkdown(entry, mode)}
       actions={
         <ActionPanel>
+          <Action title="Send to AI Chat" icon={Icon.Stars} onAction={onSendToAIChat} />
           {entry.status === "finished" ? (
             <>
               <Action title="Summarize Transcript" icon={Icon.BulletPoints} onAction={onSummarize} />
-              <Action title="Send to AI Chat" icon={Icon.Stars} onAction={onSendToAIChat} />
               <Action.CopyToClipboard title="Copy Output" content={outputForMode(entry, mode)} />
               <Action.Push title="Search in Transcript" icon={Icon.MagnifyingGlass} target={<TranscriptSearchView entry={entry} />} />
             </>
@@ -363,6 +363,10 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
       subtitle={rowMetadata(entry)}
       accessories={[
         {
+          text: `META: ${rowMetadata(entry)}`,
+          tooltip: "Debug fallback metadata",
+        },
+        {
           text: statusEmoji(entry),
           tooltip: statusAccessory(entry).tooltip,
         },
@@ -381,6 +385,12 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
               />
             }
           />
+          <Action
+            title="Send to AI Chat"
+            icon={Icon.Stars}
+            onAction={() => sendToAIChat(entry)}
+            shortcut={{ modifiers: ["cmd", "shift"], key: "a" }}
+          />
           {entry.status === "finished" ? (
             <>
               <Action
@@ -388,12 +398,6 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
                 icon={Icon.BulletPoints}
                 onAction={() => summarizeTranscript(entry)}
                 shortcut={{ modifiers: ["cmd", "shift"], key: "s" }}
-              />
-              <Action
-                title="Send to AI Chat"
-                icon={Icon.Stars}
-                onAction={() => sendToAIChat(entry)}
-                shortcut={{ modifiers: ["cmd", "shift"], key: "a" }}
               />
               <Action.CopyToClipboard title="Copy Output" content={outputForMode(entry, viewMode)} />
               <Action
