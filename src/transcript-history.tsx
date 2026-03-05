@@ -428,15 +428,15 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
     </ActionPanel>
   );
 
-  const renderItem = (entry: HistoryEntry) => [
+  const renderItem = (entry: HistoryEntry) => (
     <List.Item
-      key={`${entry.id}-title`}
+      key={entry.id}
       icon={{ source: videoThumbnailUrl(entry.videoId), fallback: Icon.Video }}
       title={rowTitle(entry)}
       accessories={[
         {
-          text: `META: ${rowMetadata(entry)}`,
-          tooltip: "Debug fallback metadata",
+          text: rowMetadata(entry),
+          tooltip: "User • Duration • Relative time",
         },
         {
           text: statusEmoji(entry),
@@ -444,14 +444,8 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
         },
       ]}
       actions={rowActions(entry)}
-    />,
-    <List.Item
-      key={`${entry.id}-meta`}
-      icon={Icon.Dot}
-      title={rowMetadata(entry)}
-      actions={rowActions(entry)}
-    />,
-  ];
+    />
+  );
 
   return (
     <List
@@ -469,7 +463,7 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
           description="Run 'Get YouTube Transcript' first. This command shows all transcripts fetched previously."
         />
       ) : (
-        filteredHistory.flatMap(renderItem)
+        filteredHistory.map(renderItem)
       )}
     </List>
   );
