@@ -425,7 +425,7 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
             onAction={() => removeEntry(entry.id)}
           />
           <Action
-            title="Clear All History"
+            title="Clean Entire History"
             style={Action.Style.Destructive}
             icon={Icon.Trash}
             shortcut={{ modifiers: ["cmd", "shift"], key: "backspace" }}
