@@ -354,8 +354,11 @@ async function queueTranscriptJob(
   }
 
   const history = await loadHistory();
-  const existing = history.find((entry) => entry.videoId === videoId && entry.status === "finished");
+  const existing = history.find((entry) => entry.videoId === videoId);
   if (existing) {
+    const phase =
+      existing.status === "finished" ? "cache-hit" : existing.status === "fetching" ? "in-flight-hit" : "error-hit";
+
     return {
       entry: {
         ...existing,
@@ -363,13 +366,14 @@ async function queueTranscriptJob(
         format,
         debugLog: toDebugJson(
           {
-            phase: "cache-hit",
+            phase,
             source: inputResolution.source,
             app: inputResolution.app,
             resolvedUrl,
             videoId,
+            existingStatus: existing.status,
           },
-          [...inputResolution.debug, { step: "cache-hit", ok: true }],
+          [...inputResolution.debug, { step: "dedupe-hit", ok: true, details: { status: existing.status } }],
         ),
       },
       fromCache: true,
@@ -494,8 +498,13 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
           });
 
           await showToast({
-            style: Toast.Style.Success,
-            title: "Transcript already cached",
+            style: entry.status === "error" ? Toast.Style.Failure : Toast.Style.Success,
+            title:
+              entry.status === "finished"
+                ? "Transcript already cached"
+                : entry.status === "fetching"
+                  ? "Transcript fetch already in progress"
+                  : "Transcript already failed",
             message: `Opened history for ${entry.videoId}`,
           });
           return;
@@ -558,8 +567,13 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
           });
 
           await showToast({
-            style: Toast.Style.Success,
-            title: "Transcript already cached",
+            style: entry.status === "error" ? Toast.Style.Failure : Toast.Style.Success,
+            title:
+              entry.status === "finished"
+                ? "Transcript already cached"
+                : entry.status === "fetching"
+                  ? "Transcript fetch already in progress"
+                  : "Transcript already failed",
             message: `Opened history for ${entry.videoId}`,
           });
           return;
