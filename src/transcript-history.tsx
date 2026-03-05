@@ -91,6 +91,19 @@ function rowTitle(entry: HistoryEntry) {
   return entry.title || entry.videoId;
 }
 
+function rowDetailMarkdown(entry: HistoryEntry) {
+  return [
+    `# ${rowTitle(entry)}`,
+    "",
+    `- **Metadata:** ${rowMetadata(entry)}`,
+    `- **Status:** ${statusAccessory(entry).text} ${statusEmoji(entry)}`,
+    `- **Language:** ${entry.language ?? "auto"}`,
+    `- **Segments:** ${entry.segmentCount}`,
+    `- **Saved:** ${new Date(entry.createdAt).toLocaleString()}`,
+    `- **URL:** ${entry.url}`,
+  ].join("\n");
+}
+
 function outputForMode(entry: HistoryEntry, mode: OutputFormat): string {
   if (!entry.rawSegments || entry.rawSegments.length === 0) {
     return entry.output;
@@ -433,11 +446,8 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
       key={entry.id}
       icon={{ source: videoThumbnailUrl(entry.videoId), fallback: Icon.Video }}
       title={rowTitle(entry)}
+      detail={<List.Item.Detail markdown={rowDetailMarkdown(entry)} />}
       accessories={[
-        {
-          text: rowMetadata(entry),
-          tooltip: "User • Duration • Relative time",
-        },
         {
           text: statusEmoji(entry),
           tooltip: statusAccessory(entry).tooltip,
@@ -450,7 +460,7 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
   return (
     <List
       isLoading={isLoading}
-      isShowingDetail={false}
+      isShowingDetail={true}
       filtering={false}
       searchBarPlaceholder="Search video titles (fuzzy)"
       searchText={searchText}
