@@ -355,92 +355,99 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
     return history.filter((entry) => fuzzyMatch(entry.title || entry.videoId, searchText));
   }, [history, searchText]);
 
-  const renderItem = (entry: HistoryEntry) => (
+  const rowActions = (entry: HistoryEntry) => (
+    <ActionPanel>
+      <Action
+        title="Send to AI Chat"
+        icon={Icon.Stars}
+        onAction={() => sendToAIChat(entry)}
+        shortcut={{ modifiers: ["cmd", "shift"], key: "a" }}
+      />
+      <Action.Push
+        title="Open Details"
+        icon={Icon.Sidebar}
+        target={
+          <TranscriptDetailView
+            entry={entry}
+            mode={viewMode}
+            onSummarize={() => summarizeTranscript(entry)}
+            onSendToAIChat={() => sendToAIChat(entry)}
+          />
+        }
+      />
+      {entry.status === "finished" ? (
+        <>
+          <Action
+            title="Summarize Transcript"
+            icon={Icon.BulletPoints}
+            onAction={() => summarizeTranscript(entry)}
+            shortcut={{ modifiers: ["cmd", "shift"], key: "s" }}
+          />
+          <Action.CopyToClipboard title="Copy Output" content={outputForMode(entry, viewMode)} />
+          <Action
+            title="View as Text"
+            icon={Icon.AlignLeft}
+            onAction={() => setAndPersistViewMode("text")}
+            shortcut={{ modifiers: ["cmd"], key: "1" }}
+          />
+          <Action
+            title="View as JSON"
+            icon={Icon.Code}
+            onAction={() => setAndPersistViewMode("json")}
+            shortcut={{ modifiers: ["cmd"], key: "2" }}
+          />
+          <Action.Push
+            title="Search in Transcript"
+            icon={Icon.MagnifyingGlass}
+            target={<TranscriptSearchView entry={entry} />}
+            shortcut={{ modifiers: ["cmd"], key: "f" }}
+          />
+          <Action.CopyToClipboard title="Copy Debug Log" content={entry.debugLog ?? "No debug data"} />
+        </>
+      ) : (
+        <>
+          <Action title="Refresh" icon={Icon.ArrowClockwise} onAction={refresh} />
+          <Action.CopyToClipboard title="Copy Debug Log" content={entry.debugLog ?? "No debug data"} />
+        </>
+      )}
+      <Action.OpenInBrowser title="Open Video" url={entry.url} shortcut={{ modifiers: ["cmd"], key: "o" }} />
+      <Action
+        title="Remove from History"
+        style={Action.Style.Destructive}
+        icon={Icon.Trash}
+        onAction={() => removeEntry(entry.id)}
+      />
+      <Action
+        title="Clean Entire History"
+        style={Action.Style.Destructive}
+        icon={Icon.Trash}
+        shortcut={{ modifiers: ["cmd", "shift"], key: "backspace" }}
+        onAction={removeAll}
+      />
+      {entry.status === "finished" ? <Action title="Refresh" icon={Icon.ArrowClockwise} onAction={refresh} /> : null}
+    </ActionPanel>
+  );
+
+  const renderItem = (entry: HistoryEntry) => [
     <List.Item
-      key={entry.id}
+      key={`${entry.id}-title`}
       icon={{ source: videoThumbnailUrl(entry.videoId), fallback: Icon.Video }}
       title={rowTitle(entry)}
-      subtitle={rowMetadata(entry)}
       accessories={[
         {
           text: statusEmoji(entry),
           tooltip: statusAccessory(entry).tooltip,
         },
       ]}
-      actions={
-        <ActionPanel>
-          <Action
-            title="Send to AI Chat"
-            icon={Icon.Stars}
-            onAction={() => sendToAIChat(entry)}
-            shortcut={{ modifiers: ["cmd", "shift"], key: "a" }}
-          />
-          <Action.Push
-            title="Open Details"
-            icon={Icon.Sidebar}
-            target={
-              <TranscriptDetailView
-                entry={entry}
-                mode={viewMode}
-                onSummarize={() => summarizeTranscript(entry)}
-                onSendToAIChat={() => sendToAIChat(entry)}
-              />
-            }
-          />
-          {entry.status === "finished" ? (
-            <>
-              <Action
-                title="Summarize Transcript"
-                icon={Icon.BulletPoints}
-                onAction={() => summarizeTranscript(entry)}
-                shortcut={{ modifiers: ["cmd", "shift"], key: "s" }}
-              />
-              <Action.CopyToClipboard title="Copy Output" content={outputForMode(entry, viewMode)} />
-              <Action
-                title="View as Text"
-                icon={Icon.AlignLeft}
-                onAction={() => setAndPersistViewMode("text")}
-                shortcut={{ modifiers: ["cmd"], key: "1" }}
-              />
-              <Action
-                title="View as JSON"
-                icon={Icon.Code}
-                onAction={() => setAndPersistViewMode("json")}
-                shortcut={{ modifiers: ["cmd"], key: "2" }}
-              />
-              <Action.Push
-                title="Search in Transcript"
-                icon={Icon.MagnifyingGlass}
-                target={<TranscriptSearchView entry={entry} />}
-                shortcut={{ modifiers: ["cmd"], key: "f" }}
-              />
-              <Action.CopyToClipboard title="Copy Debug Log" content={entry.debugLog ?? "No debug data"} />
-            </>
-          ) : (
-            <>
-              <Action title="Refresh" icon={Icon.ArrowClockwise} onAction={refresh} />
-              <Action.CopyToClipboard title="Copy Debug Log" content={entry.debugLog ?? "No debug data"} />
-            </>
-          )}
-          <Action.OpenInBrowser title="Open Video" url={entry.url} shortcut={{ modifiers: ["cmd"], key: "o" }} />
-          <Action
-            title="Remove from History"
-            style={Action.Style.Destructive}
-            icon={Icon.Trash}
-            onAction={() => removeEntry(entry.id)}
-          />
-          <Action
-            title="Clean Entire History"
-            style={Action.Style.Destructive}
-            icon={Icon.Trash}
-            shortcut={{ modifiers: ["cmd", "shift"], key: "backspace" }}
-            onAction={removeAll}
-          />
-          {entry.status === "finished" ? <Action title="Refresh" icon={Icon.ArrowClockwise} onAction={refresh} /> : null}
-        </ActionPanel>
-      }
-    />
-  );
+      actions={rowActions(entry)}
+    />,
+    <List.Item
+      key={`${entry.id}-meta`}
+      icon={Icon.Dot}
+      title={rowMetadata(entry)}
+      actions={rowActions(entry)}
+    />,
+  ];
 
   return (
     <List
@@ -458,7 +465,7 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
           description="Run 'Get YouTube Transcript' first. This command shows all transcripts fetched previously."
         />
       ) : (
-        filteredHistory.map(renderItem)
+        filteredHistory.flatMap(renderItem)
       )}
     </List>
   );
