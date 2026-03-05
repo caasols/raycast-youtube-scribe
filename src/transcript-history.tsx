@@ -83,21 +83,8 @@ function durationLabel(entry: HistoryEntry) {
   return `${minutes}:${seconds}`;
 }
 
-function rowDescription(entry: HistoryEntry) {
-  const text = entry.rawSegments?.[0]?.text?.trim();
-  if (text && text.length > 0) {
-    return text.length > 90 ? `${text.slice(0, 90)}…` : text;
-  }
-
-  if (entry.status === "error") {
-    return "Failed to transcribe";
-  }
-
-  if (entry.status === "fetching") {
-    return "Transcribing in progress...";
-  }
-
-  return "No transcript preview available";
+function rowMetadata(entry: HistoryEntry) {
+  return `You • ${durationLabel(entry)} • ${formatWhen(entry.createdAt)}`;
 }
 
 function outputForMode(entry: HistoryEntry, mode: OutputFormat): string {
@@ -390,11 +377,11 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
       key={entry.id}
       icon={{ source: videoThumbnailUrl(entry.videoId), fallback: Icon.Video }}
       title={entry.title || entry.videoId}
-      subtitle={rowDescription(entry)}
+      subtitle={rowMetadata(entry)}
       accessories={[
         {
-          text: `You • ${durationLabel(entry)} • ${statusEmoji(entry)} • ${formatWhen(entry.createdAt)}`,
-          tooltip: `User • Duration • Status • Saved ${new Date(entry.createdAt).toLocaleString()}`,
+          text: statusEmoji(entry),
+          tooltip: statusAccessory(entry).tooltip,
         },
       ]}
       actions={
