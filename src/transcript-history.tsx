@@ -83,21 +83,8 @@ function durationLabel(entry: HistoryEntry) {
   return `${minutes}:${seconds}`;
 }
 
-function rowDescription(entry: HistoryEntry) {
-  const text = entry.rawSegments?.[0]?.text?.trim();
-  if (text && text.length > 0) {
-    return text.length > 90 ? `${text.slice(0, 90)}…` : text;
-  }
-
-  if (entry.status === "error") {
-    return "Failed to transcribe";
-  }
-
-  if (entry.status === "fetching") {
-    return "Transcribing in progress...";
-  }
-
-  return "No transcript preview available";
+function rowMetadata(entry: HistoryEntry) {
+  return `You • ${durationLabel(entry)} • ${formatWhen(entry.createdAt)}`;
 }
 
 function outputForMode(entry: HistoryEntry, mode: OutputFormat): string {
@@ -130,23 +117,6 @@ function formatWhen(createdAt: string) {
   if (diffMs < 7 * day) return `${Math.floor(diffMs / day)}d ago`;
 
   return date.toLocaleDateString();
-}
-
-function buildBugReport(entry: HistoryEntry): string {
-  const payload = {
-    videoId: entry.videoId,
-    title: entry.title,
-    url: entry.url,
-    createdAt: entry.createdAt,
-    status: entry.status,
-    language: entry.language ?? "auto",
-    format: entry.format,
-    segmentCount: entry.segmentCount,
-    errorLog: entry.errorLog ?? null,
-    debugLog: entry.debugLog ?? null,
-  };
-
-  return JSON.stringify(payload, null, 2);
 }
 
 function detailMarkdown(entry: HistoryEntry, mode: OutputFormat) {
@@ -254,11 +224,7 @@ function TranscriptDetailView({
               <Action.Push title="Search in Transcript" icon={Icon.MagnifyingGlass} target={<TranscriptSearchView entry={entry} />} />
             </>
           ) : null}
-          {entry.status === "error" ? (
-            <Action.CopyToClipboard title="Copy Error Log" content={entry.errorLog ?? "Unknown error"} />
-          ) : null}
           <Action.CopyToClipboard title="Copy Debug Log" content={entry.debugLog ?? "No debug data"} />
-          <Action.CopyToClipboard title="Copy Bug Report" content={buildBugReport(entry)} />
           <Action.OpenInBrowser title="Open Video" url={entry.url} />
         </ActionPanel>
       }
@@ -390,11 +356,11 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
       key={entry.id}
       icon={{ source: videoThumbnailUrl(entry.videoId), fallback: Icon.Video }}
       title={entry.title || entry.videoId}
-      subtitle={rowDescription(entry)}
+      subtitle={rowMetadata(entry)}
       accessories={[
         {
-          text: `You • ${durationLabel(entry)} • ${statusEmoji(entry)} • ${formatWhen(entry.createdAt)}`,
-          tooltip: `User • Duration • Status • Saved ${new Date(entry.createdAt).toLocaleString()}`,
+          text: statusEmoji(entry),
+          tooltip: statusAccessory(entry).tooltip,
         },
       ]}
       actions={
@@ -445,20 +411,11 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
                 shortcut={{ modifiers: ["cmd"], key: "f" }}
               />
               <Action.CopyToClipboard title="Copy Debug Log" content={entry.debugLog ?? "No debug data"} />
-              <Action.CopyToClipboard title="Copy Bug Report" content={buildBugReport(entry)} />
             </>
           ) : (
             <>
               <Action title="Refresh" icon={Icon.ArrowClockwise} onAction={refresh} />
-              {entry.status === "error" ? (
-                <Action.CopyToClipboard
-                  title="Copy Error Log"
-                  content={entry.errorLog ?? "Unknown error"}
-                  shortcut={{ modifiers: ["cmd"], key: "c" }}
-                />
-              ) : null}
               <Action.CopyToClipboard title="Copy Debug Log" content={entry.debugLog ?? "No debug data"} />
-              <Action.CopyToClipboard title="Copy Bug Report" content={buildBugReport(entry)} />
             </>
           )}
           <Action.OpenInBrowser title="Open Video" url={entry.url} shortcut={{ modifiers: ["cmd"], key: "o" }} />
