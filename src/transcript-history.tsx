@@ -373,6 +373,12 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
       ]}
       actions={
         <ActionPanel>
+          <Action
+            title="Send to AI Chat"
+            icon={Icon.Stars}
+            onAction={() => sendToAIChat(entry)}
+            shortcut={{ modifiers: ["cmd", "shift"], key: "a" }}
+          />
           <Action.Push
             title="Open Details"
             icon={Icon.Sidebar}
@@ -384,12 +390,6 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
                 onSendToAIChat={() => sendToAIChat(entry)}
               />
             }
-          />
-          <Action
-            title="Send to AI Chat"
-            icon={Icon.Stars}
-            onAction={() => sendToAIChat(entry)}
-            shortcut={{ modifiers: ["cmd", "shift"], key: "a" }}
           />
           {entry.status === "finished" ? (
             <>
