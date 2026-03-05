@@ -355,8 +355,7 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
     <List.Item
       key={entry.id}
       icon={{ source: videoThumbnailUrl(entry.videoId), fallback: Icon.Video }}
-      title={entry.title || entry.videoId}
-      subtitle={rowMetadata(entry)}
+      title={`${entry.title || entry.videoId}\n${rowMetadata(entry)}`}
       accessories={[
         {
           text: statusEmoji(entry),
