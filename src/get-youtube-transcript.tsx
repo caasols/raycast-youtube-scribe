@@ -608,8 +608,8 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
         </ActionPanel>
       }
     >
-      <Form.Description text={`Leave URL empty to auto-detect from clipboard first, then focused browser tab (logs non-YouTube tabs for debugging). (${BUILD_TAG})`} />
-      <Form.TextField
+      <Form.Description text={`Leave URL empty to auto-detect from clipboard first, then focused browser tab (logs non-YouTube tabs for debugging). URL field is hidden while typing/pasting. (${BUILD_TAG})`} />
+      <Form.PasswordField
         title="YouTube URL or Video ID"
         placeholder="Optional: auto-detect from focused tab if empty"
         {...itemProps.videoInput}
