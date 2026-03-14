@@ -1,6 +1,1 @@
-module.exports = {
-  extends: ["@raycast"],
-  parserOptions: {
-    project: "./tsconfig.json",
-  },
-};
+module.exports = require("@raycast/eslint-config").flat();

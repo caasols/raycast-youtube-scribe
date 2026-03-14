@@ -16,6 +16,8 @@ import {
 } from "@raycast/api";
 import { useEffect, useMemo, useState } from "react";
 import { clearHistory, loadHistory, saveHistory } from "./history-store";
+import { matchesHistoryQuery } from "./lib/history-logic";
+import { materializeOutput } from "./lib/output";
 import { HistoryEntry, OutputFormat } from "./types";
 
 const VIEW_MODE_KEY = "transcript-history-view-mode";
@@ -74,7 +76,10 @@ function durationLabel(entry: HistoryEntry) {
 
   const first = segments[0];
   const last = segments[segments.length - 1];
-  const durationMs = Math.max(0, last.start_ms + last.duration_ms - first.start_ms);
+  const durationMs = Math.max(
+    0,
+    last.start_ms + last.duration_ms - first.start_ms,
+  );
   const totalSeconds = Math.round(durationMs / 1000);
   const minutes = Math.floor(totalSeconds / 60)
     .toString()
@@ -105,19 +110,7 @@ function rowDetailMarkdown(entry: HistoryEntry) {
 }
 
 function outputForMode(entry: HistoryEntry, mode: OutputFormat): string {
-  if (!entry.rawSegments || entry.rawSegments.length === 0) {
-    return entry.output;
-  }
-
-  if (mode === "json") {
-    return JSON.stringify(entry.rawSegments, null, 2);
-  }
-
-  return entry.rawSegments
-    .map((segment) => segment.text)
-    .join(" ")
-    .replace(/\s+/g, " ")
-    .trim();
+  return materializeOutput(entry, mode);
 }
 
 function formatWhen(createdAt: string) {
@@ -140,6 +133,7 @@ function detailMarkdown(entry: HistoryEntry, mode: OutputFormat) {
   const metadata = [
     `- **Status:** ${statusAccessory(entry).text}`,
     `- **Language:** ${entry.language ?? "auto"}`,
+    `- **Provider:** ${entry.provider ?? "yt-dlp"}`,
     `- **Segments:** ${entry.segmentCount}`,
     `- **Saved:** ${new Date(entry.createdAt).toLocaleString()}`,
     `- **View mode:** ${mode.toUpperCase()}`,
@@ -222,26 +216,52 @@ function TranscriptDetailView({
   mode,
   onSummarize,
   onSendToAIChat,
+  onRetry,
 }: {
   entry: HistoryEntry;
   mode: OutputFormat;
   onSummarize: () => void;
   onSendToAIChat: () => void;
+  onRetry: () => void;
 }) {
   return (
     <Detail
       markdown={detailMarkdown(entry, mode)}
       actions={
         <ActionPanel>
-          <Action title="Send to AI Chat" icon={Icon.Stars} onAction={onSendToAIChat} />
           {entry.status === "finished" ? (
             <>
-              <Action title="Summarize Transcript" icon={Icon.BulletPoints} onAction={onSummarize} />
-              <Action.CopyToClipboard title="Copy Output" content={outputForMode(entry, mode)} />
-              <Action.Push title="Search in Transcript" icon={Icon.MagnifyingGlass} target={<TranscriptSearchView entry={entry} />} />
+              <Action
+                title="Send to AI Chat"
+                icon={Icon.Stars}
+                onAction={onSendToAIChat}
+              />
+              <Action
+                title="Summarize Transcript"
+                icon={Icon.BulletPoints}
+                onAction={onSummarize}
+              />
+              <Action.CopyToClipboard
+                title="Copy Output"
+                content={outputForMode(entry, mode)}
+              />
+              <Action.Push
+                title="Search in Transcript"
+                icon={Icon.MagnifyingGlass}
+                target={<TranscriptSearchView entry={entry} />}
+              />
             </>
-          ) : null}
-          <Action.CopyToClipboard title="Copy Debug Log" content={entry.debugLog ?? "No debug data"} />
+          ) : (
+            <Action
+              title="Retry Fetch"
+              icon={Icon.ArrowClockwise}
+              onAction={onRetry}
+            />
+          )}
+          <Action.CopyToClipboard
+            title="Copy Debug Log"
+            content={entry.debugLog ?? "No debug data"}
+          />
           <Action.OpenInBrowser title="Open Video" url={entry.url} />
         </ActionPanel>
       }
@@ -302,9 +322,21 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
     await Clipboard.copy(prompt);
 
     const launchCandidates = [
-      { ownerOrAuthorName: "raycast", extensionName: "raycast-ai", name: "send-text-to-ai-chat" },
-      { ownerOrAuthorName: "raycast", extensionName: "ai", name: "send-text-to-ai-chat" },
-      { ownerOrAuthorName: "raycast", extensionName: "raycast-ai", name: "ai-chat" },
+      {
+        ownerOrAuthorName: "raycast",
+        extensionName: "raycast-ai",
+        name: "send-text-to-ai-chat",
+      },
+      {
+        ownerOrAuthorName: "raycast",
+        extensionName: "ai",
+        name: "send-text-to-ai-chat",
+      },
+      {
+        ownerOrAuthorName: "raycast",
+        extensionName: "raycast-ai",
+        name: "ai-chat",
+      },
       { ownerOrAuthorName: "raycast", extensionName: "ai", name: "ai-chat" },
     ];
 
@@ -318,7 +350,8 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
 
         await showToast({
           style: Toast.Style.Success,
-          title: mode === "summarize" ? "Summarizing in AI Chat" : "Sent to AI Chat",
+          title:
+            mode === "summarize" ? "Summarizing in AI Chat" : "Sent to AI Chat",
           message: "Transcript prepared and AI Chat opened",
         });
         return;
@@ -342,17 +375,35 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
     await openAIChat(entry, "send");
   }
 
+  async function retryFetch(entry: HistoryEntry) {
+    await launchCommand({
+      ownerOrAuthorName: "caasols",
+      extensionName: "youtube-scribe",
+      name: "get-youtube-transcript",
+      type: LaunchType.UserInitiated,
+      arguments: {
+        url: entry.url,
+        language: entry.language ?? "",
+        format: entry.format,
+      },
+    });
+  }
+
   async function removeEntry(id: string) {
     const next = history.filter((entry) => entry.id !== id);
     setHistory(next);
     await saveHistory(next);
-    await showToast({ style: Toast.Style.Success, title: "Removed from history" });
+    await showToast({
+      style: Toast.Style.Success,
+      title: "Removed from history",
+    });
   }
 
   async function removeAll() {
     const ok = await confirmAlert({
       title: "Clear transcript history?",
-      message: "This removes all previously fetched transcripts from local history.",
+      message:
+        "This removes all previously fetched transcripts from local history.",
       primaryAction: { title: "Clear", style: Action.Style.Destructive },
     });
 
@@ -365,17 +416,15 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
 
   const filteredHistory = useMemo(() => {
     if (!searchText.trim()) return history;
-    return history.filter((entry) => fuzzyMatch(entry.title || entry.videoId, searchText));
+    return history.filter(
+      (entry) =>
+        matchesHistoryQuery(entry, searchText) ||
+        fuzzyMatch(entry.title || entry.videoId, searchText),
+    );
   }, [history, searchText]);
 
   const rowActions = (entry: HistoryEntry) => (
     <ActionPanel>
-      <Action
-        title="Send to AI Chat"
-        icon={Icon.Stars}
-        onAction={() => sendToAIChat(entry)}
-        shortcut={{ modifiers: ["cmd", "shift"], key: "a" }}
-      />
       <Action.Push
         title="Open Details"
         icon={Icon.Sidebar}
@@ -385,18 +434,28 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
             mode={viewMode}
             onSummarize={() => summarizeTranscript(entry)}
             onSendToAIChat={() => sendToAIChat(entry)}
+            onRetry={() => retryFetch(entry)}
           />
         }
       />
       {entry.status === "finished" ? (
         <>
           <Action
+            title="Send to AI Chat"
+            icon={Icon.Stars}
+            onAction={() => sendToAIChat(entry)}
+            shortcut={{ modifiers: ["cmd", "shift"], key: "a" }}
+          />
+          <Action
             title="Summarize Transcript"
             icon={Icon.BulletPoints}
             onAction={() => summarizeTranscript(entry)}
             shortcut={{ modifiers: ["cmd", "shift"], key: "s" }}
           />
-          <Action.CopyToClipboard title="Copy Output" content={outputForMode(entry, viewMode)} />
+          <Action.CopyToClipboard
+            title="Copy Output"
+            content={outputForMode(entry, viewMode)}
+          />
           <Action
             title="View as Text"
             icon={Icon.AlignLeft}
@@ -415,15 +474,34 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
             target={<TranscriptSearchView entry={entry} />}
             shortcut={{ modifiers: ["cmd"], key: "f" }}
           />
-          <Action.CopyToClipboard title="Copy Debug Log" content={entry.debugLog ?? "No debug data"} />
+          <Action.CopyToClipboard
+            title="Copy Debug Log"
+            content={entry.debugLog ?? "No debug data"}
+          />
         </>
       ) : (
         <>
-          <Action title="Refresh" icon={Icon.ArrowClockwise} onAction={refresh} />
-          <Action.CopyToClipboard title="Copy Debug Log" content={entry.debugLog ?? "No debug data"} />
+          <Action
+            title="Retry Fetch"
+            icon={Icon.ArrowClockwise}
+            onAction={() => retryFetch(entry)}
+          />
+          <Action
+            title="Refresh"
+            icon={Icon.ArrowClockwise}
+            onAction={refresh}
+          />
+          <Action.CopyToClipboard
+            title="Copy Debug Log"
+            content={entry.debugLog ?? "No debug data"}
+          />
         </>
       )}
-      <Action.OpenInBrowser title="Open Video" url={entry.url} shortcut={{ modifiers: ["cmd"], key: "o" }} />
+      <Action.OpenInBrowser
+        title="Open Video"
+        url={entry.url}
+        shortcut={{ modifiers: ["cmd"], key: "o" }}
+      />
       <Action
         title="Remove from History"
         style={Action.Style.Destructive}
@@ -437,7 +515,9 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
         shortcut={{ modifiers: ["cmd", "shift"], key: "backspace" }}
         onAction={removeAll}
       />
-      {entry.status === "finished" ? <Action title="Refresh" icon={Icon.ArrowClockwise} onAction={refresh} /> : null}
+      {entry.status === "finished" ? (
+        <Action title="Refresh" icon={Icon.ArrowClockwise} onAction={refresh} />
+      ) : null}
     </ActionPanel>
   );
 

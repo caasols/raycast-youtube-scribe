@@ -1,0 +1,20 @@
+import { describe, expect, it } from "vitest";
+import { getLoadingStateText } from "../src/lib/loading-state";
+
+describe("getLoadingStateText", () => {
+  it("describes the bootstrapping state", () => {
+    expect(getLoadingStateText("bootstrapping")).toEqual({
+      title: "Looking for a YouTube Source",
+      description:
+        "Checking the clipboard and focused browser tab before falling back to manual input.",
+    });
+  });
+
+  it("describes the auto-run state", () => {
+    expect(getLoadingStateText("auto-running")).toEqual({
+      title: "Opening Transcript History",
+      description:
+        "Fetching the detected YouTube transcript now. History will open automatically.",
+    });
+  });
+});

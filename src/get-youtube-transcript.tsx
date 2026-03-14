@@ -2,6 +2,7 @@ import {
   Action,
   ActionPanel,
   Clipboard,
+  Detail,
   Form,
   Icon,
   LaunchProps,
@@ -13,11 +14,26 @@ import {
   showToast,
 } from "@raycast/api";
 import { FormValidation, useForm } from "@raycast/utils";
-import { execFileSync } from "child_process";
 import { useEffect, useMemo, useState } from "react";
-import { YoutubeTranscript } from "youtube-transcript";
-import { loadHistory, patchHistoryEntry, prependHistory } from "./history-store";
-import { HistoryEntry, OutputFormat, TranscriptSegment } from "./types";
+import {
+  loadHistory,
+  patchHistoryEntry,
+  prependHistory,
+} from "./history-store";
+import { getFocusedTabContext, getFocusedYoutubeUrl } from "./lib/browser";
+import { findReusableEntry, shouldCopyEntryOutput } from "./lib/history-logic";
+import { getInitialLaunchMode } from "./lib/launch-mode";
+import { getLoadingStateText } from "./lib/loading-state";
+import { fetchTranscriptWithYtDlp, findYtDlp } from "./lib/ytdlp";
+import { materializeOutput } from "./lib/output";
+import {
+  extractVideoId,
+  extractYoutubeUrlFromText,
+  makeFetchKey,
+  normalizeInput,
+  normalizeLanguage,
+} from "./lib/youtube";
+import { HistoryEntry, OutputFormat } from "./types";
 
 type Arguments = {
   url?: string;
@@ -31,69 +47,7 @@ type FormValues = {
   format: OutputFormat;
 };
 
-const BUILD_TAG = "diag-2026-03-04d";
-
-const BROWSER_SCRIPTS: Record<string, string> = {
-  "Google Chrome": 'tell application "Google Chrome" to return URL of active tab of front window',
-  "Google Chrome Canary": 'tell application "Google Chrome Canary" to return URL of active tab of front window',
-  Chromium: 'tell application "Chromium" to return URL of active tab of front window',
-  "Brave Browser": 'tell application "Brave Browser" to return URL of active tab of front window',
-  "Microsoft Edge": 'tell application "Microsoft Edge" to return URL of active tab of front window',
-  Safari: 'tell application "Safari" to return URL of current tab of front window',
-  "Safari Technology Preview":
-    'tell application "Safari Technology Preview" to return URL of current tab of front window',
-  Arc: 'tell application "Arc" to return URL of active tab of front window',
-  Vivaldi: 'tell application "Vivaldi" to return URL of active tab of front window',
-  Opera: 'tell application "Opera" to return URL of active tab of front window',
-};
-
-function normalizeInput(input?: string): string {
-  return (input ?? "").trim();
-}
-
-function toOutputFormat(value?: string): OutputFormat {
-  return value?.toLowerCase() === "json" ? "json" : "text";
-}
-
-function extractYoutubeUrlFromText(text?: string): string | null {
-  const value = normalizeInput(text);
-  if (!value) return null;
-
-  const match = value.match(/https?:\/\/(?:www\.)?(?:youtube\.com|youtu\.be)\/[^\s)]+/i);
-  return match?.[0] ?? null;
-}
-
-function extractVideoId(input: string): string {
-  const value = normalizeInput(input);
-
-  if (/^[a-zA-Z0-9_-]{11}$/.test(value)) return value;
-
-  try {
-    const url = new URL(value);
-
-    if (url.hostname.includes("youtu.be")) return url.pathname.replace("/", "");
-
-    if (url.hostname.includes("youtube.com")) {
-      const v = url.searchParams.get("v");
-      if (v) return v;
-
-      const shorts = url.pathname.match(/\/shorts\/([a-zA-Z0-9_-]{11})/);
-      if (shorts?.[1]) return shorts[1];
-    }
-  } catch {
-    // ignore parse issues
-  }
-
-  throw new Error("Please provide a valid YouTube URL or video ID.");
-}
-
-function runAppleScript(script: string): string | null {
-  try {
-    return execFileSync("osascript", ["-e", script], { encoding: "utf-8" }).trim() || null;
-  } catch {
-    return null;
-  }
-}
+type UiMode = "bootstrapping" | "auto-running" | "manual-form";
 
 type DebugStep = {
   step: string;
@@ -109,10 +63,16 @@ type InputResolution = {
   debug: DebugStep[];
 };
 
-function toDebugJson(context: Record<string, unknown>, steps: DebugStep[]): string {
+function toOutputFormat(value?: string): OutputFormat {
+  return value?.toLowerCase() === "json" ? "json" : "text";
+}
+
+function toDebugJson(
+  context: Record<string, unknown>,
+  steps: DebugStep[],
+): string {
   return JSON.stringify(
     {
-      build: BUILD_TAG,
       at: new Date().toISOString(),
       ...context,
       steps,
@@ -122,80 +82,75 @@ function toDebugJson(context: Record<string, unknown>, steps: DebugStep[]): stri
   );
 }
 
-function getFocusedTabContext(): { url: string; title: string; app: string } {
-  if (process.platform !== "darwin") {
-    throw new Error("Focused browser detection is only available on macOS. Paste the YouTube URL instead.");
-  }
-
-  const app = runAppleScript(
-    'tell application "System Events" to return name of first application process whose frontmost is true',
-  );
-
-  if (!app) throw new Error("Could not detect the frontmost application. Paste a YouTube URL instead.");
-  if (app === "Firefox") throw new Error("Firefox detected. Please paste the YouTube URL manually.");
-
-  const browserScript = BROWSER_SCRIPTS[app];
-  if (!browserScript) throw new Error(`'${app}' is not a supported browser. Paste a YouTube URL instead.`);
-
-  const url = runAppleScript(browserScript);
-  if (!url) throw new Error(`Could not retrieve the current tab URL from ${app}.`);
-
-  const titleScript = browserScript.replace("URL", "title");
-  const title = runAppleScript(titleScript) ?? "Untitled tab";
-
-  return { url, title, app };
+function buildMissingYtDlpMessage(): string {
+  return [
+    "yt-dlp is not installed.",
+    "Install it with `brew install yt-dlp` or `pipx install yt-dlp`, then try again.",
+  ].join(" ");
 }
 
-function getFocusedYoutubeUrl(): { url: string; app: string; title: string } {
-  const focused = getFocusedTabContext();
-  if (!focused.url.includes("youtube.com") && !focused.url.includes("youtu.be")) {
-    throw new Error(`Focused tab in ${focused.app} is not a YouTube page. Paste a YouTube URL or focus a YouTube tab.`);
+function toTranscriptError(error: unknown): Error {
+  if (!(error instanceof Error)) {
+    return new Error("Failed to fetch transcript due to an unknown error.");
   }
 
-  return focused;
-}
+  const message = error.message.trim();
+  const lowerMessage = message.toLowerCase();
 
-function toTranscriptError(error: unknown, preferredLang: string): Error {
-  if (!(error instanceof Error)) return new Error("Failed to fetch transcript due to an unknown error.");
-
-  const code = error.name;
-  const rawMessage = (error.message || "").trim();
-  const msg = rawMessage.toLowerCase();
-  const details = rawMessage ? ` [${code}] ${rawMessage}` : ` [${code}]`;
-
-  if (code === "YoutubeTranscriptDisabledError" || msg.includes("transcript is disabled")) {
-    return new Error(`This video has transcripts disabled by the uploader.${details}`);
+  if (lowerMessage.includes("yt-dlp is not installed")) {
+    return new Error(buildMissingYtDlpMessage());
   }
 
-  if (code === "YoutubeTranscriptVideoUnavailableError" || msg.includes("video unavailable")) {
-    return new Error(`This video is unavailable (private, removed, or restricted).${details}`);
+  if (lowerMessage.includes("no captions found")) {
+    return new Error("No transcript track is available for this video.");
   }
 
-  if (code === "YoutubeTranscriptNotAvailableLanguageError") {
+  if (lowerMessage.includes("sign in") || lowerMessage.includes("cookies")) {
     return new Error(
-      preferredLang
-        ? `No transcript is available for language '${preferredLang}'. Try leaving language blank to auto-detect.${details}`
-        : `No transcript is available for the requested language.${details}`,
+      "This video requires browser cookies or sign-in access to fetch captions.",
     );
   }
 
-  if (code === "YoutubeTranscriptNotAvailableError" || msg.includes("no transcripts are available")) {
-    return new Error(`No transcript track is available for this video.${details}`);
+  if (
+    lowerMessage.includes("private") ||
+    lowerMessage.includes("video unavailable")
+  ) {
+    return new Error(
+      "This video is unavailable (private, removed, or restricted).",
+    );
   }
 
-  if (code === "YoutubeTranscriptTooManyRequestError" || msg.includes("too many request")) {
-    return new Error(`YouTube is rate-limiting transcript requests right now. Please try again in a moment.${details}`);
+  if (
+    lowerMessage.includes("rate limit") ||
+    lowerMessage.includes("too many requests") ||
+    lowerMessage.includes("http error 429")
+  ) {
+    return new Error(
+      "YouTube is rate-limiting transcript requests right now. Please try again in a moment.",
+    );
   }
 
-  return new Error((error.message || "Failed to fetch transcript.") + details);
+  if (lowerMessage.includes("timed out")) {
+    return new Error(
+      "yt-dlp timed out while fetching captions. Please retry. If it keeps happening, open the debug log from history.",
+    );
+  }
+
+  return new Error(message || "Failed to fetch transcript.");
 }
 
-async function resolveYoutubeInput(videoInput: string): Promise<InputResolution> {
+async function resolveYoutubeInput(
+  videoInput: string,
+): Promise<InputResolution> {
   const debug: DebugStep[] = [];
 
   const manualUrl = normalizeInput(videoInput);
   if (manualUrl) {
-    debug.push({ step: "manual-input", ok: true, details: { value: manualUrl } });
+    debug.push({
+      step: "manual-input",
+      ok: true,
+      details: { value: manualUrl },
+    });
     return { url: manualUrl, source: "manual", debug };
   }
   debug.push({ step: "manual-input", ok: false });
@@ -203,20 +158,37 @@ async function resolveYoutubeInput(videoInput: string): Promise<InputResolution>
   const clipboardText = await Clipboard.readText();
   const clipboardUrl = extractYoutubeUrlFromText(clipboardText ?? undefined);
   if (clipboardUrl) {
-    debug.push({ step: "clipboard-scan", ok: true, details: { value: clipboardUrl } });
+    debug.push({
+      step: "clipboard-scan",
+      ok: true,
+      details: { value: clipboardUrl },
+    });
     return { url: clipboardUrl, source: "clipboard", debug };
   }
   debug.push({ step: "clipboard-scan", ok: false });
 
   try {
     const focused = getFocusedYoutubeUrl();
-    debug.push({ step: "focused-tab", ok: true, details: { app: focused.app, value: focused.url, title: focused.title } });
-    return { url: focused.url, source: "focused-tab", app: focused.app, tabTitle: focused.title, debug };
+    debug.push({
+      step: "focused-tab",
+      ok: true,
+      details: { app: focused.app, value: focused.url, title: focused.title },
+    });
+    return {
+      url: focused.url,
+      source: "focused-tab",
+      app: focused.app,
+      tabTitle: focused.title,
+      debug,
+    };
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown focused-tab detection error";
+    const message =
+      error instanceof Error
+        ? error.message
+        : "Unknown focused-tab detection error";
     debug.push({ step: "focused-tab", ok: false, details: { error: message } });
     throw new Error(
-      `${message}\n\nDebug trace:\n${toDebugJson({ phase: "resolve-input", source: "none" }, debug)}`,
+      `${message}\n\nDebug trace:\n${toDebugJson({ phase: "resolve-input" }, debug)}`,
     );
   }
 }
@@ -233,63 +205,16 @@ async function fetchVideoTitle(videoId: string): Promise<string> {
   }
 }
 
-function buildTextOutput(rawSegments: TranscriptSegment[]): string {
-  return rawSegments
-    .map((segment) => segment.text)
-    .join(" ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
+function maybeResolveCookieBrowser(
+  inputResolution: InputResolution,
+): string | undefined {
+  if (inputResolution.app) return inputResolution.app;
 
-function buildJsonOutput(rawSegments: TranscriptSegment[]): string {
-  return JSON.stringify(rawSegments, null, 2);
-}
-
-function materializeOutput(entry: HistoryEntry, format: OutputFormat): string {
-  if (entry.rawSegments && entry.rawSegments.length > 0) {
-    return format === "json" ? buildJsonOutput(entry.rawSegments) : buildTextOutput(entry.rawSegments);
-  }
-
-  return entry.output;
-}
-
-async function fetchTranscriptOutput(videoId: string, language: string) {
-  const preferredLang = normalizeInput(language);
-
-  let chunks;
   try {
-    chunks = await YoutubeTranscript.fetchTranscript(videoId, preferredLang ? { lang: preferredLang } : undefined);
-
-    if (chunks.length === 0 && preferredLang) {
-      chunks = await YoutubeTranscript.fetchTranscript(videoId);
-    }
-  } catch (error) {
-    throw toTranscriptError(error, preferredLang);
+    return getFocusedTabContext().app;
+  } catch {
+    return undefined;
   }
-
-  const rawSegments: TranscriptSegment[] = chunks.map((chunk) => ({
-    text: chunk.text,
-    start_ms: chunk.offset,
-    duration_ms: chunk.duration,
-  }));
-
-  const textOutput = buildTextOutput(rawSegments);
-
-  if (!textOutput) {
-    throw new Error(
-      preferredLang
-        ? `Transcript was empty for language '${preferredLang}'. Try leaving language blank to auto-detect.`
-        : "Transcript was empty for this video. It may have no accessible transcript track.",
-    );
-  }
-
-  return {
-    rawSegments,
-    textOutput,
-    jsonOutput: buildJsonOutput(rawSegments),
-    language: preferredLang || chunks[0]?.lang,
-    segmentCount: chunks.length,
-  };
 }
 
 async function appendResolutionErrorEntry(
@@ -301,11 +226,13 @@ async function appendResolutionErrorEntry(
   const id = `${Date.now()}-input-error`;
   const entry: HistoryEntry = {
     id,
+    fetchKey: `${id}::error`,
     createdAt: new Date().toISOString(),
     videoId: `input-error-${id}`,
     url: inputResolution.url,
-    title: inputResolution.tabTitle || inputResolution.url || "Unsupported input",
-    language: normalizeInput(language) || undefined,
+    title:
+      inputResolution.tabTitle || inputResolution.url || "Unsupported input",
+    language: normalizeLanguage(language) || undefined,
     format,
     segmentCount: 0,
     output: "Failed to fetch transcript.",
@@ -316,13 +243,15 @@ async function appendResolutionErrorEntry(
         phase: "extract-video-id",
         source: inputResolution.source,
         app: inputResolution.app,
-        tabTitle: inputResolution.tabTitle,
         resolvedUrl: inputResolution.url,
-        requestedLanguage: normalizeInput(language) || "auto",
+        requestedLanguage: normalizeLanguage(language) || "auto",
         format,
         error: errorMessage,
       },
-      [...inputResolution.debug, { step: "history-write-input-error", ok: true }],
+      [
+        ...inputResolution.debug,
+        { step: "history-write-input-error", ok: true },
+      ],
     ),
   };
 
@@ -337,15 +266,24 @@ async function queueTranscriptJob(
 ): Promise<{ entry: HistoryEntry; fromCache: boolean }> {
   const inputResolution = await resolveYoutubeInput(videoInput);
   const resolvedUrl = inputResolution.url;
+  const normalizedLanguage = normalizeLanguage(language);
 
   let videoId: string;
   try {
     videoId = extractVideoId(resolvedUrl);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Please provide a valid YouTube URL or video ID.";
+    const message =
+      error instanceof Error
+        ? error.message
+        : "Please provide a valid YouTube URL or video ID.";
 
     if (inputResolution.source === "focused-tab") {
-      await appendResolutionErrorEntry(inputResolution, language, format, message);
+      await appendResolutionErrorEntry(
+        inputResolution,
+        normalizedLanguage,
+        format,
+        message,
+      );
     }
 
     throw new Error(
@@ -353,42 +291,40 @@ async function queueTranscriptJob(
     );
   }
 
+  const fetchKey = makeFetchKey(videoId, normalizedLanguage);
   const history = await loadHistory();
-  const existing = history.find((entry) => entry.videoId === videoId);
-  if (existing) {
-    const phase =
-      existing.status === "finished" ? "cache-hit" : existing.status === "fetching" ? "in-flight-hit" : "error-hit";
+  const { reusable, inFlight } = findReusableEntry(history, fetchKey);
 
+  if (reusable) {
     return {
       entry: {
-        ...existing,
-        output: materializeOutput(existing, format),
+        ...reusable,
         format,
-        debugLog: toDebugJson(
-          {
-            phase,
-            source: inputResolution.source,
-            app: inputResolution.app,
-            resolvedUrl,
-            videoId,
-            existingStatus: existing.status,
-          },
-          [...inputResolution.debug, { step: "dedupe-hit", ok: true, details: { status: existing.status } }],
-        ),
+        output: materializeOutput(reusable, format),
+      },
+      fromCache: true,
+    };
+  }
+
+  if (inFlight) {
+    return {
+      entry: {
+        ...inFlight,
+        format,
       },
       fromCache: true,
     };
   }
 
   const id = `${Date.now()}-${videoId}`;
-
   const pending: HistoryEntry = {
     id,
+    fetchKey,
     createdAt: new Date().toISOString(),
     videoId,
     url: `https://www.youtube.com/watch?v=${videoId}`,
     title: videoId,
-    language: normalizeInput(language) || undefined,
+    language: normalizedLanguage || undefined,
     format,
     segmentCount: 0,
     output: "Still fetching transcript...",
@@ -400,7 +336,8 @@ async function queueTranscriptJob(
         app: inputResolution.app,
         resolvedUrl,
         videoId,
-        requestedLanguage: normalizeInput(language) || "auto",
+        fetchKey,
+        requestedLanguage: normalizedLanguage || "auto",
         format,
       },
       [...inputResolution.debug, { step: "history-write-pending", ok: true }],
@@ -412,16 +349,34 @@ async function queueTranscriptJob(
   const title = await fetchVideoTitle(videoId);
   await patchHistoryEntry(id, { title });
 
+  const ytDlpLocation = findYtDlp();
+  const cookieBrowserApp = maybeResolveCookieBrowser(inputResolution);
+
   try {
-    const result = await fetchTranscriptOutput(videoId, language);
-    const finished = {
+    if (!ytDlpLocation) {
+      throw new Error(buildMissingYtDlpMessage());
+    }
+
+    const result = await fetchTranscriptWithYtDlp({
+      videoUrl: resolvedUrl,
+      requestedLanguage: normalizedLanguage,
+      browserApp: cookieBrowserApp,
+      ytDlpPath: ytDlpLocation.path,
+    });
+
+    const finished: HistoryEntry = {
       ...pending,
       title,
       output: format === "json" ? result.jsonOutput : result.textOutput,
       rawSegments: result.rawSegments,
-      language: result.language,
+      language: result.effectiveLanguage,
       segmentCount: result.segmentCount,
-      status: "finished" as const,
+      status: "finished",
+      provider: result.provider,
+      diagnostics: {
+        ...result.diagnostics,
+        ytDlpSource: ytDlpLocation.source,
+      },
       errorLog: undefined,
       debugLog: toDebugJson(
         {
@@ -430,24 +385,44 @@ async function queueTranscriptJob(
           app: inputResolution.app,
           resolvedUrl,
           videoId,
-          requestedLanguage: normalizeInput(language) || "auto",
-          effectiveLanguage: result.language ?? "unknown",
+          fetchKey,
+          requestedLanguage: normalizedLanguage || "auto",
+          effectiveLanguage: result.effectiveLanguage,
           segmentCount: result.segmentCount,
-          format,
+          provider: result.provider,
+          diagnostics: {
+            ...result.diagnostics,
+            ytDlpSource: ytDlpLocation.source,
+          },
         },
-        [...inputResolution.debug, { step: "transcript-fetch", ok: true, details: { segmentCount: result.segmentCount } }],
+        [
+          ...inputResolution.debug,
+          {
+            step: "transcript-fetch",
+            ok: true,
+            details: { segmentCount: result.segmentCount },
+          },
+        ],
       ),
     };
+
     await patchHistoryEntry(id, finished);
     return { entry: finished, fromCache: false };
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    const friendlyError = toTranscriptError(error);
     const failed: HistoryEntry = {
       ...pending,
       title,
       status: "error",
-      output: `Failed to fetch transcript.`,
-      errorLog: errorMessage,
+      output: "Failed to fetch transcript.",
+      errorLog: friendlyError.message,
+      provider: "yt-dlp",
+      diagnostics: {
+        ytDlpPath: ytDlpLocation?.path,
+        ytDlpSource: ytDlpLocation?.source,
+        browserApp: cookieBrowserApp,
+        requestedLanguage: normalizedLanguage || "auto",
+      },
       debugLog: toDebugJson(
         {
           phase: "transcript-error",
@@ -455,26 +430,50 @@ async function queueTranscriptJob(
           app: inputResolution.app,
           resolvedUrl,
           videoId,
-          requestedLanguage: normalizeInput(language) || "auto",
-          format,
-          error: errorMessage,
+          fetchKey,
+          requestedLanguage: normalizedLanguage || "auto",
+          provider: "yt-dlp",
+          ytDlpPath: ytDlpLocation?.path,
+          ytDlpSource: ytDlpLocation?.source,
+          cookieBrowserApp,
+          error: error instanceof Error ? error.message : String(error),
+          friendlyError: friendlyError.message,
         },
-        [...inputResolution.debug, { step: "transcript-fetch", ok: false, details: { error: errorMessage } }],
+        [
+          ...inputResolution.debug,
+          {
+            step: "transcript-fetch",
+            ok: false,
+            details: { error: friendlyError.message },
+          },
+        ],
       ),
     };
+
     await patchHistoryEntry(id, failed);
-    throw error;
+    throw friendlyError;
   }
+}
+
+async function openHistory(videoId: string) {
+  await launchCommand({
+    ownerOrAuthorName: "caasols",
+    extensionName: "youtube-scribe",
+    name: "transcript-history",
+    type: LaunchType.UserInitiated,
+    arguments: { videoId },
+  });
 }
 
 export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
   const [isLoading, setIsLoading] = useState(false);
   const [bootstrapped, setBootstrapped] = useState(false);
+  const [uiMode, setUiMode] = useState<UiMode>("bootstrapping");
 
   const defaults = useMemo(
     () => ({
       videoInput: normalizeInput(props.arguments.url),
-      language: normalizeInput(props.arguments.language),
+      language: normalizeLanguage(props.arguments.language),
       format: toOutputFormat(props.arguments.format),
     }),
     [props.arguments.format, props.arguments.language, props.arguments.url],
@@ -485,26 +484,32 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
     onSubmit: async (values) => {
       setIsLoading(true);
       try {
-        const { entry, fromCache } = await queueTranscriptJob(values.videoInput, values.language, values.format);
-        await Clipboard.copy(entry.output);
+        const { entry, fromCache } = await queueTranscriptJob(
+          values.videoInput,
+          values.language,
+          values.format,
+        );
+
+        if (shouldCopyEntryOutput(entry)) {
+          await Clipboard.copy(entry.output);
+        }
 
         if (fromCache) {
-          await launchCommand({
-            ownerOrAuthorName: "caasols",
-            extensionName: "youtube-scribe",
-            name: "transcript-history",
-            type: LaunchType.UserInitiated,
-            arguments: { videoId: entry.videoId },
-          });
+          await openHistory(entry.videoId);
 
           await showToast({
-            style: entry.status === "error" ? Toast.Style.Failure : Toast.Style.Success,
+            style:
+              entry.status === "finished"
+                ? Toast.Style.Success
+                : entry.status === "fetching"
+                  ? Toast.Style.Animated
+                  : Toast.Style.Failure,
             title:
               entry.status === "finished"
                 ? "Transcript already cached"
                 : entry.status === "fetching"
                   ? "Transcript fetch already in progress"
-                  : "Transcript already failed",
+                  : "Transcript fetch failed",
             message: `Opened history for ${entry.videoId}`,
           });
           return;
@@ -513,14 +518,14 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
         await showToast({
           style: Toast.Style.Success,
           title: "Transcript ready",
-          message: `Copied to clipboard • ${entry.segmentCount} segments`,
+          message: `Copied to clipboard • ${entry.segmentCount} segments • ${entry.language ?? "auto"}`,
         });
 
         await popToRoot();
       } catch (error) {
         await showToast({
           style: Toast.Style.Failure,
-          title: `Failed to fetch transcript (${BUILD_TAG})`,
+          title: "Failed to fetch transcript",
           message: error instanceof Error ? error.message : "Unknown error",
         });
       } finally {
@@ -538,11 +543,20 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
       setBootstrapped(true);
 
       const clipboardText = await Clipboard.readText();
-      const hasAutoUrl = Boolean(extractYoutubeUrlFromText(clipboardText ?? undefined));
-      const hasAnyArgs = Boolean(defaults.videoInput || defaults.language || props.arguments.format);
+      const hasAutoUrl = Boolean(
+        extractYoutubeUrlFromText(clipboardText ?? undefined),
+      );
+      const hasUrlArgument = Boolean(defaults.videoInput);
+      const hasLanguageArgument = Boolean(defaults.language);
+      const hasFormatArgument = Boolean(props.arguments.format);
 
       let hasFocusedTab = false;
-      if (!hasAnyArgs && !hasAutoUrl) {
+      if (
+        !hasUrlArgument &&
+        !hasLanguageArgument &&
+        !hasFormatArgument &&
+        !hasAutoUrl
+      ) {
         try {
           hasFocusedTab = Boolean(getFocusedTabContext().url);
         } catch {
@@ -550,30 +564,48 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
         }
       }
 
-      if (!hasAnyArgs && !hasAutoUrl && !hasFocusedTab) return;
+      const launchMode = getInitialLaunchMode({
+        hasUrlArgument,
+        hasLanguageArgument,
+        hasFormatArgument,
+        hasClipboardUrl: hasAutoUrl,
+        hasFocusedYoutubeTab: hasFocusedTab,
+      });
 
+      if (launchMode === "manual-form") {
+        setUiMode("manual-form");
+        return;
+      }
+
+      setUiMode("auto-running");
       setIsLoading(true);
       try {
-        const { entry, fromCache } = await queueTranscriptJob(defaults.videoInput, defaults.language, defaults.format);
-        await Clipboard.copy(entry.output);
+        const { entry, fromCache } = await queueTranscriptJob(
+          defaults.videoInput,
+          defaults.language,
+          defaults.format,
+        );
+
+        if (shouldCopyEntryOutput(entry)) {
+          await Clipboard.copy(entry.output);
+        }
 
         if (fromCache) {
-          await launchCommand({
-            ownerOrAuthorName: "caasols",
-            extensionName: "youtube-scribe",
-            name: "transcript-history",
-            type: LaunchType.UserInitiated,
-            arguments: { videoId: entry.videoId },
-          });
+          await openHistory(entry.videoId);
 
           await showToast({
-            style: entry.status === "error" ? Toast.Style.Failure : Toast.Style.Success,
+            style:
+              entry.status === "finished"
+                ? Toast.Style.Success
+                : entry.status === "fetching"
+                  ? Toast.Style.Animated
+                  : Toast.Style.Failure,
             title:
               entry.status === "finished"
                 ? "Transcript already cached"
                 : entry.status === "fetching"
                   ? "Transcript fetch already in progress"
-                  : "Transcript already failed",
+                  : "Transcript fetch failed",
             message: `Opened history for ${entry.videoId}`,
           });
           return;
@@ -583,12 +615,12 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
         await showToast({
           style: Toast.Style.Success,
           title: "Transcript ready",
-          message: `Copied to clipboard • ${entry.segmentCount} segments`,
+          message: `Copied to clipboard • ${entry.segmentCount} segments • ${entry.language ?? "auto"}`,
         });
       } catch (error) {
         await showToast({
           style: Toast.Style.Failure,
-          title: `Failed to fetch transcript (${BUILD_TAG})`,
+          title: "Failed to fetch transcript",
           message: error instanceof Error ? error.message : "Unknown error",
         });
       } finally {
@@ -597,24 +629,51 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
     }
 
     maybeRunFromArgs();
-  }, [bootstrapped, defaults.format, defaults.language, defaults.videoInput, props.arguments.format]);
+  }, [
+    bootstrapped,
+    defaults.format,
+    defaults.language,
+    defaults.videoInput,
+    props.arguments.format,
+  ]);
+
+  if (uiMode !== "manual-form") {
+    const loadingState = getLoadingStateText(
+      uiMode === "auto-running" ? "auto-running" : "bootstrapping",
+    );
+
+    return (
+      <Detail
+        isLoading={true}
+        markdown={`# ${loadingState.title}\n\n${loadingState.description}`}
+      />
+    );
+  }
 
   return (
     <Form
       isLoading={isLoading}
       actions={
         <ActionPanel>
-          <Action.SubmitForm title="Fetch Transcript" icon={Icon.Download} onSubmit={handleSubmit} />
+          <Action.SubmitForm
+            title="Fetch Transcript"
+            icon={Icon.Download}
+            onSubmit={handleSubmit}
+          />
         </ActionPanel>
       }
     >
-      <Form.Description text={`Leave URL empty to auto-detect from clipboard first, then focused browser tab (logs non-YouTube tabs for debugging). URL field is hidden while typing/pasting. (${BUILD_TAG})`} />
-      <Form.PasswordField
+      <Form.Description text="Leave the URL empty to auto-detect from the clipboard first, then the focused browser tab. Requires a local `yt-dlp` install." />
+      <Form.TextField
         title="YouTube URL or Video ID"
-        placeholder="Optional: auto-detect from focused tab if empty"
+        placeholder="Optional: auto-detect from clipboard or focused tab"
         {...itemProps.videoInput}
       />
-      <Form.TextField title="Language" placeholder="Optional, e.g. en, pt, es" {...itemProps.language} />
+      <Form.TextField
+        title="Language"
+        placeholder="Optional, e.g. en, pt, es"
+        {...itemProps.language}
+      />
       <Form.Dropdown title="Output Format" {...itemProps.format}>
         <Form.Dropdown.Item value="text" title="text" />
         <Form.Dropdown.Item value="json" title="json" />
