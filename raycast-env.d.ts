@@ -30,9 +30,6 @@ declare namespace Arguments {
   "format": string
 }
   /** Arguments passed to the `transcript-history` command */
-  export type TranscriptHistory = {
-  /** Optional videoId filter */
-  "videoId": string
-}
+  export type TranscriptHistory = {}
 }
 

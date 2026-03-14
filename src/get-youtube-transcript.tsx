@@ -455,13 +455,12 @@ async function queueTranscriptJob(
   }
 }
 
-async function openHistory(videoId: string) {
+async function openHistory() {
   await launchCommand({
     ownerOrAuthorName: "caasols",
     extensionName: "youtube-scribe",
     name: "transcript-history",
     type: LaunchType.UserInitiated,
-    arguments: { videoId },
   });
 }
 
@@ -495,7 +494,7 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
         }
 
         if (fromCache) {
-          await openHistory(entry.videoId);
+          await openHistory();
 
           await showToast({
             style:
@@ -510,7 +509,7 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
                 : entry.status === "fetching"
                   ? "Transcript fetch already in progress"
                   : "Transcript fetch failed",
-            message: `Opened history for ${entry.videoId}`,
+            message: "Opened transcript history",
           });
           return;
         }
@@ -591,7 +590,7 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
         }
 
         if (fromCache) {
-          await openHistory(entry.videoId);
+          await openHistory();
 
           await showToast({
             style:
@@ -606,7 +605,7 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
                 : entry.status === "fetching"
                   ? "Transcript fetch already in progress"
                   : "Transcript fetch failed",
-            message: `Opened history for ${entry.videoId}`,
+            message: "Opened transcript history",
           });
           return;
         }

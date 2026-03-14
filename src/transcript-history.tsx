@@ -8,7 +8,6 @@ import {
   List,
   Detail,
   LocalStorage,
-  LaunchProps,
   Toast,
   confirmAlert,
   launchCommand,
@@ -269,13 +268,11 @@ function TranscriptDetailView({
   );
 }
 
-type Arguments = { videoId?: string };
-
-export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
+export default function Command() {
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [viewMode, setViewMode] = useState<OutputFormat>("text");
-  const [searchText, setSearchText] = useState(props.arguments.videoId ?? "");
+  const [searchText, setSearchText] = useState("");
 
   async function setAndPersistViewMode(mode: OutputFormat) {
     setViewMode(mode);
