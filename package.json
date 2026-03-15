@@ -1,0 +1,108 @@
+{
+  "$schema": "https://www.raycast.com/schemas/extension.json",
+  "name": "youtube-transcribe",
+  "title": "YouTube Transcribe",
+  "description": "Find and extract transcripts from YouTube videos.",
+  "icon": "extension-icon.png",
+  "author": "caasols",
+  "categories": [
+    "Productivity",
+    "Developer Tools"
+  ],
+  "preferences": [
+    {
+      "name": "summarizePromptTemplate",
+      "title": "Summarize Prompt Template",
+      "description": "Custom prompt template for transcript summaries. Supported variables: {{title}}, {{url}}, {{transcript}}",
+      "type": "textfield",
+      "default": "You are creating a concise, structured summary of a YouTube video based only on its transcript.\n\nUse this structure:\n\n### Summary\nWrite a brief, clear summary that captures the core message of the video.\n\n### Analogy\nWrite a short, insightful analogy that relates the main idea to a familiar everyday-life situation.\n\n### Notes\n- List the most important 20% of ideas that explain 80% of the video's value.\n- Keep the bullets practical and high signal.\n\n### Keywords\n- Identify the most important terms, complex words, or acronyms from the transcript.\n- For each, provide a short, simple explanation based on how it is used in the video.\n\nConstraints:\n- Do not invent facts that are not supported by the transcript.\n- Keep the entire response under 330 words.\n- Be concise and information-dense.\n- Use the following source material:\n\nTitle: {{title}}\nURL: {{url}}\nTranscript:\n{{transcript}}",
+      "required": false
+    },
+    {
+      "name": "historyLimit",
+      "title": "History Limit",
+      "description": "Maximum number of transcript entries to keep in history.",
+      "type": "dropdown",
+      "required": false,
+      "default": "100",
+      "data": [
+        { "title": "50 entries", "value": "50" },
+        { "title": "100 entries", "value": "100" },
+        { "title": "200 entries", "value": "200" },
+        { "title": "500 entries", "value": "500" }
+      ]
+    },
+    {
+      "name": "historyMaxAgeDays",
+      "title": "History Max Age",
+      "description": "Automatically remove entries older than this. Set to 'Unlimited' to keep all entries.",
+      "type": "dropdown",
+      "required": false,
+      "default": "0",
+      "data": [
+        { "title": "7 days", "value": "7" },
+        { "title": "30 days", "value": "30" },
+        { "title": "90 days", "value": "90" },
+        { "title": "365 days", "value": "365" },
+        { "title": "Unlimited", "value": "0" }
+      ]
+    }
+  ],
+  "license": "MIT",
+  "commands": [
+    {
+      "name": "get-youtube-transcript",
+      "title": "Transcribe YouTube Video",
+      "subtitle": "YouTube Transcribe",
+      "description": "Fetch and copy a transcript from a YouTube video",
+      "mode": "view",
+      "arguments": [
+        {
+          "name": "language",
+          "type": "text",
+          "placeholder": "Language code, e.g. en, pt, es (optional)",
+          "required": false
+        }
+      ]
+    },
+    {
+      "name": "transcript-history",
+      "title": "View Transcript History",
+      "subtitle": "YouTube Transcribe",
+      "description": "Browse all previously fetched YouTube transcripts",
+      "mode": "view"
+    },
+    {
+      "name": "fetch-youtube-transcript-worker",
+      "title": "Fetch YouTube Transcript Worker",
+      "subtitle": "YouTube Transcribe",
+      "description": "Internal background worker for transcript fetching",
+      "mode": "no-view",
+      "interval": "1h"
+    }
+  ],
+  "dependencies": {
+    "@raycast/api": "^1.99.0",
+    "@raycast/utils": "^1.17.0"
+  },
+  "devDependencies": {
+    "@raycast/eslint-config": "^2.0.4",
+    "@types/node": "22.13.10",
+    "@types/react": "19.0.10",
+    "eslint": "^9.22.0",
+    "eslint-plugin-react-hooks": "^5.1.0",
+    "prettier": "^3.5.3",
+    "typescript": "^5.8.2",
+    "vitest": "^3.2.4"
+  },
+  "scripts": {
+    "build": "ray build",
+    "dev": "ray develop",
+    "fix-lint": "ray lint --fix",
+    "lint": "ray lint",
+    "publish": "npx @raycast/api@latest publish",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:smoke": "RUN_YTDLP_SMOKE=1 vitest run tests/ytdlp.smoke.test.ts"
+  }
+}
