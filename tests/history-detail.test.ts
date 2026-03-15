@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { buildHistoryDetailMarkdown } from "../src/lib/history-detail";
+import {
+  buildHistoryDetailMarkdown,
+  buildHistoryDetailMetadata,
+} from "../src/lib/history-detail";
 import type { HistoryEntry } from "../src/types";
 
 const baseEntry: HistoryEntry = {
@@ -20,10 +23,19 @@ const baseEntry: HistoryEntry = {
 describe("buildHistoryDetailMarkdown", () => {
   it("does not append debug logs to finished transcript views", () => {
     const markdown = buildHistoryDetailMarkdown(baseEntry, "text");
+    const metadata = buildHistoryDetailMetadata(baseEntry, "text");
 
     expect(markdown).toContain("## Transcript");
     expect(markdown).not.toContain("## Debug log");
     expect(markdown).toContain("hello world");
+    expect(markdown).not.toContain("**Status:**");
+    expect(metadata).toEqual(
+      expect.arrayContaining([
+        { label: "Status", value: "Ready" },
+        { label: "Language", value: "auto" },
+        { label: "View", value: "TEXT" },
+      ]),
+    );
   });
 
   it("still shows debug logs for error entries", () => {

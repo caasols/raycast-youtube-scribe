@@ -21,7 +21,10 @@ import {
   prependHistory,
 } from "./history-store";
 import { getFocusedTabContext, getFocusedYoutubeUrl } from "./lib/browser";
-import { buildHistoryDetailMarkdown } from "./lib/history-detail";
+import {
+  buildHistoryDetailMarkdown,
+  buildHistoryDetailMetadata,
+} from "./lib/history-detail";
 import { getFetchCompletionDestination } from "./lib/fetch-navigation";
 import { findReusableEntry, shouldCopyEntryOutput } from "./lib/history-logic";
 import { getInitialLaunchMode } from "./lib/launch-mode";
@@ -536,6 +539,17 @@ function TranscriptDetailView({
   return (
     <Detail
       markdown={buildHistoryDetailMarkdown(entry, mode)}
+      metadata={
+        <Detail.Metadata>
+          {buildHistoryDetailMetadata(entry, mode).map((item) => (
+            <Detail.Metadata.Label
+              key={`${entry.id}-${item.label}`}
+              title={item.label}
+              text={item.value}
+            />
+          ))}
+        </Detail.Metadata>
+      }
       actions={
         <ActionPanel>
           <Action.CopyToClipboard

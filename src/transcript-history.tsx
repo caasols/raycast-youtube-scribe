@@ -15,7 +15,10 @@ import {
 } from "@raycast/api";
 import { useEffect, useMemo, useState } from "react";
 import { clearHistory, loadHistory, saveHistory } from "./history-store";
-import { buildHistoryDetailMarkdown } from "./lib/history-detail";
+import {
+  buildHistoryDetailMarkdown,
+  buildHistoryDetailMetadata,
+} from "./lib/history-detail";
 import { matchesHistoryQuery } from "./lib/history-logic";
 import {
   findFocusedHistoryEntry,
@@ -110,16 +113,27 @@ function rowTitle(entry: HistoryEntry) {
 }
 
 function rowDetailMarkdown(entry: HistoryEntry) {
-  return [
-    `# ${rowTitle(entry)}`,
-    "",
-    `- **Metadata:** ${rowMetadata(entry)}`,
-    `- **Status:** ${statusAccessory(entry).text} ${statusEmoji(entry)}`,
-    `- **Language:** ${entry.language ?? "auto"}`,
-    `- **Segments:** ${entry.segmentCount}`,
-    `- **Saved:** ${new Date(entry.createdAt).toLocaleString()}`,
-    `- **URL:** ${entry.url}`,
-  ].join("\n");
+  const preview =
+    entry.status === "finished"
+      ? materializeOutput(entry, "text").slice(0, 1200)
+      : entry.status === "error"
+        ? (entry.errorLog ?? "Transcript fetch failed.")
+        : "Transcript is still being fetched.";
+
+  return [`# ${rowTitle(entry)}`, "", preview].join("\n");
+}
+
+function toMetadataItems(
+  entry: HistoryEntry,
+  mode: OutputFormat,
+): JSX.Element[] {
+  return buildHistoryDetailMetadata(entry, mode).map((item) => (
+    <List.Item.Detail.Metadata.Label
+      key={`${entry.id}-${item.label}`}
+      title={item.label}
+      text={item.value}
+    />
+  ));
 }
 
 function outputForMode(entry: HistoryEntry, mode: OutputFormat): string {
@@ -187,6 +201,17 @@ function TranscriptDetailView({
   return (
     <Detail
       markdown={buildHistoryDetailMarkdown(entry, mode)}
+      metadata={
+        <Detail.Metadata>
+          {buildHistoryDetailMetadata(entry, mode).map((item) => (
+            <Detail.Metadata.Label
+              key={`${entry.id}-${item.label}`}
+              title={item.label}
+              text={item.value}
+            />
+          ))}
+        </Detail.Metadata>
+      }
       actions={
         <ActionPanel>
           {entry.status === "finished" ? (
@@ -544,7 +569,17 @@ export default function Command() {
       key={entry.id}
       icon={{ source: videoThumbnailUrl(entry.videoId), fallback: Icon.Video }}
       title={rowTitle(entry)}
-      detail={<List.Item.Detail markdown={rowDetailMarkdown(entry)} />}
+      subtitle={rowMetadata(entry)}
+      detail={
+        <List.Item.Detail
+          markdown={rowDetailMarkdown(entry)}
+          metadata={
+            <List.Item.Detail.Metadata>
+              {toMetadataItems(entry, resolveMode(entry))}
+            </List.Item.Detail.Metadata>
+          }
+        />
+      }
       accessories={[
         {
           text: statusEmoji(entry),
@@ -572,7 +607,7 @@ export default function Command() {
       isLoading={isLoading}
       isShowingDetail={true}
       filtering={false}
-      searchBarPlaceholder="Search video titles (fuzzy)"
+      searchBarPlaceholder="Search transcript history..."
       searchText={searchText}
       onSearchTextChange={setSearchText}
     >
