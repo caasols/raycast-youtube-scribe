@@ -22,12 +22,8 @@ declare namespace Preferences {
 declare namespace Arguments {
   /** Arguments passed to the `get-youtube-transcript` command */
   export type GetYoutubeTranscript = {
-  /** YouTube URL (optional) */
-  "url": string,
   /** Language code, e.g. en, pt, es (optional) */
-  "language": string,
-  /** Format: json or text (default: text) */
-  "format": string
+  "language": string
 }
   /** Arguments passed to the `transcript-history` command */
   export type TranscriptHistory = {}

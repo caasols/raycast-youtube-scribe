@@ -34,10 +34,10 @@ The extension can auto-detect the focused YouTube tab in those browsers and, whe
 ## How It Works
 
 1. Run `Transcribe YouTube Video`.
-2. Leave the URL blank to auto-detect a YouTube link from the clipboard first, then the focused browser tab.
-3. Optionally provide a language code such as `en`, `pt`, or `es`.
-4. Choose `text` or `json`.
-5. The transcript is copied to the clipboard and saved in `Transcript History`.
+2. The extension first tries to detect a YouTube link from the clipboard, then the focused browser tab.
+3. If nothing is detected, it falls back to a manual form where you can paste a video URL or ID.
+4. Optionally provide a language code such as `en`, `pt`, or `es`.
+5. The transcript is copied to the clipboard and saved in `View Transcript History`.
 
 ## Development
 

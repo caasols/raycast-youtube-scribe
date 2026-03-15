@@ -13,6 +13,14 @@ describe("command metadata", () => {
 
     expect(command).toBeDefined();
     expect(command?.title).toBe("Transcribe YouTube Video");
+    expect(command?.arguments ?? []).toEqual([
+      {
+        name: "language",
+        type: "text",
+        placeholder: "Language code, e.g. en, pt, es (optional)",
+        required: false,
+      },
+    ]);
   });
 
   it("exposes the history command without arguments and with the new title", () => {

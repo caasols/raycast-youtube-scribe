@@ -24,7 +24,12 @@ const finished: HistoryEntry = {
 
 describe("history logic", () => {
   it("reuses only finished entries with the same fetch key", () => {
-    const errorEntry: HistoryEntry = { ...finished, id: "error", status: "error", output: "Failed to fetch transcript." };
+    const errorEntry: HistoryEntry = {
+      ...finished,
+      id: "error",
+      status: "error",
+      output: "Failed to fetch transcript.",
+    };
     const fetchingEntry: HistoryEntry = {
       ...finished,
       id: "fetching",
@@ -32,17 +37,67 @@ describe("history logic", () => {
       output: "Still fetching transcript...",
       createdAt: new Date().toISOString(),
     };
-    const differentLang: HistoryEntry = { ...finished, id: "pt", fetchKey: "abc::pt", language: "pt" };
+    const differentLang: HistoryEntry = {
+      ...finished,
+      id: "pt",
+      fetchKey: "abc::pt",
+      language: "pt",
+    };
 
-    expect(findReusableEntry([errorEntry, fetchingEntry, differentLang, finished], "abc::en")).toEqual({
+    expect(
+      findReusableEntry(
+        [errorEntry, fetchingEntry, differentLang, finished],
+        "abc::en",
+      ),
+    ).toEqual({
       reusable: finished,
       inFlight: fetchingEntry,
+      retryable: errorEntry,
     });
+  });
+
+  it("returns the latest failed entry as retryable for the same fetch key", () => {
+    const olderError: HistoryEntry = {
+      ...finished,
+      id: "older-error",
+      status: "error",
+      output: "Failed to fetch transcript.",
+      createdAt: "2026-03-14T09:00:00.000Z",
+    };
+    const newerError: HistoryEntry = {
+      ...finished,
+      id: "newer-error",
+      status: "error",
+      output: "Failed to fetch transcript.",
+      createdAt: "2026-03-14T11:00:00.000Z",
+    };
+
+    expect(findReusableEntry([olderError, newerError], "abc::en")).toEqual({
+      retryable: newerError,
+    });
+  });
+
+  it("keeps auto-language retries separate from explicit language entries", () => {
+    const autoError: HistoryEntry = {
+      ...finished,
+      id: "auto-error",
+      fetchKey: "abc::auto",
+      language: undefined,
+      status: "error",
+      output: "Failed to fetch transcript.",
+    };
+
+    expect(findReusableEntry([autoError], "abc::auto")).toEqual({
+      retryable: autoError,
+    });
+    expect(findReusableEntry([autoError], "abc::en")).toEqual({});
   });
 
   it("only copies finished transcript output", () => {
     expect(shouldCopyEntryOutput(finished)).toBe(true);
-    expect(shouldCopyEntryOutput({ ...finished, status: "fetching" })).toBe(false);
+    expect(shouldCopyEntryOutput({ ...finished, status: "fetching" })).toBe(
+      false,
+    );
     expect(shouldCopyEntryOutput({ ...finished, status: "error" })).toBe(false);
   });
 
@@ -52,7 +107,9 @@ describe("history logic", () => {
       id: "stale-fetching",
       status: "fetching",
       output: "Still fetching transcript...",
-      createdAt: new Date(Date.now() - FINDING_STALE_AFTER_MS - 1_000).toISOString(),
+      createdAt: new Date(
+        Date.now() - FINDING_STALE_AFTER_MS - 1_000,
+      ).toISOString(),
     };
 
     expect(findReusableEntry([staleFetching], "abc::en")).toEqual({});
@@ -64,7 +121,9 @@ describe("history logic", () => {
       id: "stale-fetching",
       status: "fetching",
       output: "Still fetching transcript...",
-      createdAt: new Date(Date.now() - FINDING_STALE_AFTER_MS - 1_000).toISOString(),
+      createdAt: new Date(
+        Date.now() - FINDING_STALE_AFTER_MS - 1_000,
+      ).toISOString(),
     };
 
     const repaired = repairStaleFetchingEntries([staleFetching]);

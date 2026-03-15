@@ -51,6 +51,25 @@ export async function patchHistoryEntry(
   return next;
 }
 
+export async function patchHistoryEntryAndMoveToFront(
+  id: string,
+  patch: Partial<HistoryEntry>,
+): Promise<HistoryEntry[]> {
+  const current = await loadHistory();
+  const target = current.find((entry) => entry.id === id);
+  if (!target) {
+    return current;
+  }
+
+  const patched = { ...target, ...patch };
+  const next = [patched, ...current.filter((entry) => entry.id !== id)].slice(
+    0,
+    200,
+  );
+  await saveHistory(next);
+  return next;
+}
+
 export async function clearHistory(): Promise<void> {
   await LocalStorage.removeItem(HISTORY_KEY);
 }

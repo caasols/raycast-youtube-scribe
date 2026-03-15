@@ -7,6 +7,7 @@ import {
   Icon,
   LaunchProps,
   LaunchType,
+  LocalStorage,
   Toast,
   launchCommand,
   showToast,
@@ -15,6 +16,7 @@ import { FormValidation, useForm } from "@raycast/utils";
 import { useEffect, useMemo, useState } from "react";
 import {
   loadHistory,
+  patchHistoryEntryAndMoveToFront,
   patchHistoryEntry,
   prependHistory,
 } from "./history-store";
@@ -25,6 +27,15 @@ import { findReusableEntry, shouldCopyEntryOutput } from "./lib/history-logic";
 import { getInitialLaunchMode } from "./lib/launch-mode";
 import { getLoadingStateText } from "./lib/loading-state";
 import { materializeOutput } from "./lib/output";
+import {
+  TRANSCRIPT_RETRY_PAYLOAD_KEY,
+  TranscriptRetryPayload,
+} from "./lib/retry-payload";
+import {
+  loadViewModePreferences,
+  saveViewModePreference,
+} from "./lib/view-mode-preferences-storage";
+import { resolveViewModePreference } from "./lib/view-mode-preferences";
 import { fetchTranscriptWithYtDlp, findYtDlp } from "./lib/ytdlp";
 import {
   extractVideoId,
@@ -33,18 +44,15 @@ import {
   normalizeInput,
   normalizeLanguage,
 } from "./lib/youtube";
-import { HistoryEntry, OutputFormat } from "./types";
+import { HistoryEntry } from "./types";
 
 type Arguments = {
-  url?: string;
   language?: string;
-  format?: string;
 };
 
 type FormValues = {
   videoInput: string;
   language: string;
-  format: OutputFormat;
 };
 
 type UiMode = "bootstrapping" | "auto-running" | "manual-form" | "detail";
@@ -62,10 +70,6 @@ type InputResolution = {
   tabTitle?: string;
   debug: DebugStep[];
 };
-
-function toOutputFormat(value?: string): OutputFormat {
-  return value?.toLowerCase() === "json" ? "json" : "text";
-}
 
 function toDebugJson(
   context: Record<string, unknown>,
@@ -220,7 +224,6 @@ function maybeResolveCookieBrowser(
 async function appendResolutionErrorEntry(
   inputResolution: InputResolution,
   language: string,
-  format: OutputFormat,
   errorMessage: string,
 ): Promise<HistoryEntry> {
   const id = `${Date.now()}-input-error`;
@@ -233,7 +236,7 @@ async function appendResolutionErrorEntry(
     title:
       inputResolution.tabTitle || inputResolution.url || "Unsupported input",
     language: normalizeLanguage(language) || undefined,
-    format,
+    format: "text",
     segmentCount: 0,
     output: "Failed to fetch transcript.",
     status: "error",
@@ -245,7 +248,7 @@ async function appendResolutionErrorEntry(
         app: inputResolution.app,
         resolvedUrl: inputResolution.url,
         requestedLanguage: normalizeLanguage(language) || "auto",
-        format,
+        format: "text",
         error: errorMessage,
       },
       [
@@ -262,7 +265,6 @@ async function appendResolutionErrorEntry(
 async function queueTranscriptJob(
   videoInput: string,
   language: string,
-  format: OutputFormat,
 ): Promise<{ entry: HistoryEntry; fromCache: boolean }> {
   const inputResolution = await resolveYoutubeInput(videoInput);
   const resolvedUrl = inputResolution.url;
@@ -281,7 +283,6 @@ async function queueTranscriptJob(
       await appendResolutionErrorEntry(
         inputResolution,
         normalizedLanguage,
-        format,
         message,
       );
     }
@@ -293,14 +294,17 @@ async function queueTranscriptJob(
 
   const fetchKey = makeFetchKey(videoId, normalizedLanguage);
   const history = await loadHistory();
-  const { reusable, inFlight } = findReusableEntry(history, fetchKey);
+  const { reusable, inFlight, retryable } = findReusableEntry(
+    history,
+    fetchKey,
+  );
 
   if (reusable) {
     return {
       entry: {
         ...reusable,
-        format,
-        output: materializeOutput(reusable, format),
+        format: "text",
+        output: materializeOutput(reusable, "text"),
       },
       fromCache: true,
     };
@@ -310,25 +314,28 @@ async function queueTranscriptJob(
     return {
       entry: {
         ...inFlight,
-        format,
+        format: "text",
       },
       fromCache: true,
     };
   }
 
-  const id = `${Date.now()}-${videoId}`;
+  const id = retryable?.id ?? `${Date.now()}-${videoId}`;
   const pending: HistoryEntry = {
+    ...(retryable ?? {}),
     id,
     fetchKey,
     createdAt: new Date().toISOString(),
     videoId,
     url: `https://www.youtube.com/watch?v=${videoId}`,
-    title: videoId,
+    title: retryable?.title || videoId,
     language: normalizedLanguage || undefined,
-    format,
+    format: "text",
     segmentCount: 0,
     output: "Still fetching transcript...",
+    rawSegments: undefined,
     status: "fetching",
+    errorLog: undefined,
     debugLog: toDebugJson(
       {
         phase: "pending",
@@ -338,13 +345,19 @@ async function queueTranscriptJob(
         videoId,
         fetchKey,
         requestedLanguage: normalizedLanguage || "auto",
-        format,
+        format: "text",
       },
       [...inputResolution.debug, { step: "history-write-pending", ok: true }],
     ),
+    provider: undefined,
+    diagnostics: undefined,
   };
 
-  await prependHistory(pending);
+  if (retryable) {
+    await patchHistoryEntryAndMoveToFront(id, pending);
+  } else {
+    await prependHistory(pending);
+  }
 
   const title = await fetchVideoTitle(videoId);
   await patchHistoryEntry(id, { title });
@@ -367,7 +380,7 @@ async function queueTranscriptJob(
     const finished: HistoryEntry = {
       ...pending,
       title,
-      output: format === "json" ? result.jsonOutput : result.textOutput,
+      output: result.textOutput,
       rawSegments: result.rawSegments,
       language: result.effectiveLanguage,
       segmentCount: result.segmentCount,
@@ -511,19 +524,35 @@ function TranscriptSearchView({ entry }: { entry: HistoryEntry }) {
 
 function TranscriptDetailView({
   entry,
+  mode,
   onOpenHistory,
+  onSetMode,
 }: {
   entry: HistoryEntry;
+  mode: "text" | "json";
   onOpenHistory: () => Promise<void>;
+  onSetMode: (mode: "text" | "json") => Promise<void>;
 }) {
   return (
     <Detail
-      markdown={buildHistoryDetailMarkdown(entry, entry.format)}
+      markdown={buildHistoryDetailMarkdown(entry, mode)}
       actions={
         <ActionPanel>
           <Action.CopyToClipboard
             title="Copy Output"
-            content={materializeOutput(entry, entry.format)}
+            content={materializeOutput(entry, mode)}
+          />
+          <Action
+            title="View as Text"
+            icon={Icon.AlignLeft}
+            onAction={() => onSetMode("text")}
+            shortcut={{ modifiers: ["cmd"], key: "1" }}
+          />
+          <Action
+            title="View as JSON"
+            icon={Icon.Code}
+            onAction={() => onSetMode("json")}
+            shortcut={{ modifiers: ["cmd"], key: "2" }}
           />
           <Action.Push
             title="Search in Transcript"
@@ -551,14 +580,14 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
   const [bootstrapped, setBootstrapped] = useState(false);
   const [uiMode, setUiMode] = useState<UiMode>("bootstrapping");
   const [detailEntry, setDetailEntry] = useState<HistoryEntry | undefined>();
+  const [detailMode, setDetailMode] = useState<"text" | "json">("text");
 
   const defaults = useMemo(
     () => ({
-      videoInput: normalizeInput(props.arguments.url),
+      videoInput: "",
       language: normalizeLanguage(props.arguments.language),
-      format: toOutputFormat(props.arguments.format),
     }),
-    [props.arguments.format, props.arguments.language, props.arguments.url],
+    [props.arguments.language],
   );
 
   const { handleSubmit, itemProps } = useForm<FormValues>({
@@ -569,7 +598,6 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
         const { entry, fromCache } = await queueTranscriptJob(
           values.videoInput,
           values.language,
-          values.format,
         );
 
         if (shouldCopyEntryOutput(entry)) {
@@ -578,6 +606,10 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
 
         if (fromCache) {
           if (getFetchCompletionDestination(entry) === "detail") {
+            const preferences = await loadViewModePreferences();
+            setDetailMode(
+              resolveViewModePreference(preferences, entry.fetchKey),
+            );
             setDetailEntry(entry);
             setUiMode("detail");
           } else {
@@ -606,6 +638,7 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
         }
 
         setDetailEntry(entry);
+        setDetailMode("text");
         setUiMode("detail");
         await showToast({
           style: Toast.Style.Success,
@@ -624,7 +657,7 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
       }
     },
     validation: {
-      format: FormValidation.Required,
+      videoInput: FormValidation.Required,
     },
   });
 
@@ -633,21 +666,28 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
       if (bootstrapped) return;
       setBootstrapped(true);
 
+      const retryPayloadRaw = await LocalStorage.getItem<string>(
+        TRANSCRIPT_RETRY_PAYLOAD_KEY,
+      );
+      let retryPayload: TranscriptRetryPayload | undefined;
+      if (retryPayloadRaw) {
+        try {
+          retryPayload = JSON.parse(retryPayloadRaw) as TranscriptRetryPayload;
+        } catch {
+          retryPayload = undefined;
+        }
+      }
+      if (retryPayloadRaw) {
+        await LocalStorage.removeItem(TRANSCRIPT_RETRY_PAYLOAD_KEY);
+      }
+
       const clipboardText = await Clipboard.readText();
       const hasAutoUrl = Boolean(
         extractYoutubeUrlFromText(clipboardText ?? undefined),
       );
-      const hasUrlArgument = Boolean(defaults.videoInput);
-      const hasLanguageArgument = Boolean(defaults.language);
-      const hasFormatArgument = Boolean(props.arguments.format);
 
       let hasFocusedTab = false;
-      if (
-        !hasUrlArgument &&
-        !hasLanguageArgument &&
-        !hasFormatArgument &&
-        !hasAutoUrl
-      ) {
+      if (!hasAutoUrl) {
         try {
           hasFocusedTab = Boolean(getFocusedTabContext().url);
         } catch {
@@ -656,10 +696,8 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
       }
 
       const launchMode = getInitialLaunchMode({
-        hasUrlArgument,
-        hasLanguageArgument,
-        hasFormatArgument,
-        hasClipboardUrl: hasAutoUrl,
+        hasLanguageArgument: Boolean(defaults.language),
+        hasClipboardUrl: Boolean(retryPayload?.url) || hasAutoUrl,
         hasFocusedYoutubeTab: hasFocusedTab,
       });
 
@@ -672,9 +710,8 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
       setIsLoading(true);
       try {
         const { entry, fromCache } = await queueTranscriptJob(
-          defaults.videoInput,
-          defaults.language,
-          defaults.format,
+          retryPayload?.url ?? defaults.videoInput,
+          retryPayload?.language ?? defaults.language,
         );
 
         if (shouldCopyEntryOutput(entry)) {
@@ -683,6 +720,10 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
 
         if (fromCache) {
           if (getFetchCompletionDestination(entry) === "detail") {
+            const preferences = await loadViewModePreferences();
+            setDetailMode(
+              resolveViewModePreference(preferences, entry.fetchKey),
+            );
             setDetailEntry(entry);
             setUiMode("detail");
           } else {
@@ -711,6 +752,7 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
         }
 
         setDetailEntry(entry);
+        setDetailMode("text");
         setUiMode("detail");
         await showToast({
           style: Toast.Style.Success,
@@ -730,18 +772,20 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
     }
 
     maybeRunFromArgs();
-  }, [
-    bootstrapped,
-    defaults.format,
-    defaults.language,
-    defaults.videoInput,
-    props.arguments.format,
-  ]);
+  }, [bootstrapped, defaults.language, defaults.videoInput]);
 
   if (uiMode !== "manual-form") {
     if (uiMode === "detail" && detailEntry) {
       return (
-        <TranscriptDetailView entry={detailEntry} onOpenHistory={openHistory} />
+        <TranscriptDetailView
+          entry={detailEntry}
+          mode={detailMode}
+          onOpenHistory={openHistory}
+          onSetMode={async (mode) => {
+            setDetailMode(mode);
+            await saveViewModePreference(detailEntry.fetchKey, mode);
+          }}
+        />
       );
     }
 
@@ -770,10 +814,10 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
         </ActionPanel>
       }
     >
-      <Form.Description text="Leave the URL empty to auto-detect from the clipboard first, then the focused browser tab. Requires a local `yt-dlp` install." />
+      <Form.Description text="No YouTube source was auto-detected. Paste a video URL or ID here. Requires a local `yt-dlp` install." />
       <Form.TextField
         title="YouTube URL or Video ID"
-        placeholder="Optional: auto-detect from clipboard or focused tab"
+        placeholder="Paste a YouTube URL or video ID"
         {...itemProps.videoInput}
       />
       <Form.TextField
@@ -781,10 +825,6 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
         placeholder="Optional, e.g. en, pt, es"
         {...itemProps.language}
       />
-      <Form.Dropdown title="Output Format" {...itemProps.format}>
-        <Form.Dropdown.Item value="text" title="text" />
-        <Form.Dropdown.Item value="json" title="json" />
-      </Form.Dropdown>
     </Form>
   );
 }

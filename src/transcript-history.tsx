@@ -24,9 +24,16 @@ import {
   shouldConsumeHistoryFocusRequest,
 } from "./lib/history-navigation";
 import { materializeOutput } from "./lib/output";
+import {
+  loadViewModePreferences,
+  saveViewModePreference,
+} from "./lib/view-mode-preferences-storage";
+import {
+  resolveViewModePreference,
+  ViewModePreferences,
+} from "./lib/view-mode-preferences";
+import { TRANSCRIPT_RETRY_PAYLOAD_KEY } from "./lib/retry-payload";
 import { HistoryEntry, OutputFormat } from "./types";
-
-const VIEW_MODE_KEY = "transcript-history-view-mode";
 
 function fuzzyMatch(text: string, query: string): boolean {
   const t = text.toLowerCase();
@@ -226,12 +233,20 @@ export default function Command() {
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [focusedEntry, setFocusedEntry] = useState<HistoryEntry | undefined>();
   const [isLoading, setIsLoading] = useState(true);
-  const [viewMode, setViewMode] = useState<OutputFormat>("text");
+  const [viewModePreferences, setViewModePreferences] =
+    useState<ViewModePreferences>({});
   const [searchText, setSearchText] = useState("");
 
-  async function setAndPersistViewMode(mode: OutputFormat) {
-    setViewMode(mode);
-    await LocalStorage.setItem(VIEW_MODE_KEY, mode);
+  function resolveMode(entry: HistoryEntry): OutputFormat {
+    return resolveViewModePreference(viewModePreferences, entry.fetchKey);
+  }
+
+  async function setAndPersistViewMode(
+    entry: HistoryEntry,
+    mode: OutputFormat,
+  ) {
+    const next = await saveViewModePreference(entry.fetchKey, mode);
+    setViewModePreferences(next);
   }
 
   async function refresh() {
@@ -260,10 +275,7 @@ export default function Command() {
 
   useEffect(() => {
     async function bootstrap() {
-      const savedMode = await LocalStorage.getItem<string>(VIEW_MODE_KEY);
-      if (savedMode === "text" || savedMode === "json") {
-        setViewMode(savedMode);
-      }
+      setViewModePreferences(await loadViewModePreferences());
       await refresh();
     }
 
@@ -312,7 +324,7 @@ export default function Command() {
   }, [history]);
 
   async function openAIChat(entry: HistoryEntry, mode: "send" | "summarize") {
-    const output = outputForMode(entry, viewMode);
+    const output = outputForMode(entry, resolveMode(entry));
 
     const prompt =
       mode === "summarize"
@@ -377,15 +389,20 @@ export default function Command() {
 
   async function retryFetch(entry: HistoryEntry) {
     setFocusedEntry(undefined);
+    await LocalStorage.setItem(
+      TRANSCRIPT_RETRY_PAYLOAD_KEY,
+      JSON.stringify({
+        url: entry.url,
+        language: entry.language ?? "",
+      }),
+    );
     await launchCommand({
       ownerOrAuthorName: "caasols",
       extensionName: "youtube-scribe",
       name: "get-youtube-transcript",
       type: LaunchType.UserInitiated,
       arguments: {
-        url: entry.url,
         language: entry.language ?? "",
-        format: entry.format,
       },
     });
   }
@@ -432,7 +449,7 @@ export default function Command() {
         target={
           <TranscriptDetailView
             entry={entry}
-            mode={viewMode}
+            mode={resolveMode(entry)}
             onSummarize={() => summarizeTranscript(entry)}
             onSendToAIChat={() => sendToAIChat(entry)}
             onRetry={() => retryFetch(entry)}
@@ -455,18 +472,18 @@ export default function Command() {
           />
           <Action.CopyToClipboard
             title="Copy Output"
-            content={outputForMode(entry, viewMode)}
+            content={outputForMode(entry, resolveMode(entry))}
           />
           <Action
             title="View as Text"
             icon={Icon.AlignLeft}
-            onAction={() => setAndPersistViewMode("text")}
+            onAction={() => setAndPersistViewMode(entry, "text")}
             shortcut={{ modifiers: ["cmd"], key: "1" }}
           />
           <Action
             title="View as JSON"
             icon={Icon.Code}
-            onAction={() => setAndPersistViewMode("json")}
+            onAction={() => setAndPersistViewMode(entry, "json")}
             shortcut={{ modifiers: ["cmd"], key: "2" }}
           />
           <Action.Push
@@ -542,7 +559,7 @@ export default function Command() {
     return (
       <TranscriptDetailView
         entry={focusedEntry}
-        mode={viewMode}
+        mode={resolveMode(focusedEntry)}
         onSummarize={() => summarizeTranscript(focusedEntry)}
         onSendToAIChat={() => sendToAIChat(focusedEntry)}
         onRetry={() => retryFetch(focusedEntry)}

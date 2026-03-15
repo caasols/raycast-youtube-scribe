@@ -19,21 +19,9 @@
       "mode": "view",
       "arguments": [
         {
-          "name": "url",
-          "type": "text",
-          "placeholder": "YouTube URL (optional)",
-          "required": false
-        },
-        {
           "name": "language",
           "type": "text",
           "placeholder": "Language code, e.g. en, pt, es (optional)",
-          "required": false
-        },
-        {
-          "name": "format",
-          "type": "text",
-          "placeholder": "Format: json or text (default: text)",
           "required": false
         }
       ]

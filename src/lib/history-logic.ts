@@ -20,8 +20,16 @@ export function findReusableEntry(
 ): {
   reusable?: HistoryEntry;
   inFlight?: HistoryEntry;
+  retryable?: HistoryEntry;
 } {
   const matches = entries.filter((entry) => entry.fetchKey === fetchKey);
+  const retryable = matches
+    .filter((entry) => entry.status === "error")
+    .sort(
+      (left, right) =>
+        new Date(right.createdAt).getTime() -
+        new Date(left.createdAt).getTime(),
+    )[0];
 
   return {
     reusable: matches.find((entry) => entry.status === "finished"),
@@ -29,6 +37,7 @@ export function findReusableEntry(
       (entry) =>
         entry.status === "fetching" && !isStaleFetchingEntry(entry, now),
     ),
+    retryable,
   };
 }
 
