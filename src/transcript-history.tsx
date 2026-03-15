@@ -15,7 +15,14 @@ import {
 } from "@raycast/api";
 import { useEffect, useMemo, useState } from "react";
 import { clearHistory, loadHistory, saveHistory } from "./history-store";
+import { buildHistoryDetailMarkdown } from "./lib/history-detail";
 import { matchesHistoryQuery } from "./lib/history-logic";
+import {
+  findFocusedHistoryEntry,
+  HISTORY_FOCUS_ENTRY_KEY,
+  reconcileFocusedHistoryEntry,
+  shouldConsumeHistoryFocusRequest,
+} from "./lib/history-navigation";
 import { materializeOutput } from "./lib/output";
 import { HistoryEntry, OutputFormat } from "./types";
 
@@ -128,59 +135,6 @@ function formatWhen(createdAt: string) {
   return date.toLocaleDateString();
 }
 
-function detailMarkdown(entry: HistoryEntry, mode: OutputFormat) {
-  const metadata = [
-    `- **Status:** ${statusAccessory(entry).text}`,
-    `- **Language:** ${entry.language ?? "auto"}`,
-    `- **Provider:** ${entry.provider ?? "yt-dlp"}`,
-    `- **Segments:** ${entry.segmentCount}`,
-    `- **Saved:** ${new Date(entry.createdAt).toLocaleString()}`,
-    `- **View mode:** ${mode.toUpperCase()}`,
-    `- **URL:** ${entry.url}`,
-  ].join("\n");
-
-  if (entry.status === "fetching") {
-    return `# ${entry.title}\n\n${metadata}\n\n---\n\n## Processing\nStill fetching transcript...\n\n## Debug log\n\n\
-\
-\
-${entry.debugLog ?? "No debug data"}\n\
-\
-\
-`;
-  }
-
-  if (entry.status === "error") {
-    return `# ${entry.title}\n\n${metadata}\n\n---\n\n## Error log\n\n\
-\
-\
-${entry.errorLog ?? "Unknown error"}\n\
-\
-\
-\n## Debug log\n\n\
-\
-\
-${entry.debugLog ?? "No debug data"}\n\
-\
-\
-`;
-  }
-
-  const output = outputForMode(entry, mode);
-  return `# ${entry.title}\n\n${metadata}\n\n---\n\n## Transcript\n\n\
-\
-\
-${output}\n\
-\
-\
-\n## Debug log\n\n\
-\
-\
-${entry.debugLog ?? "No debug data"}\n\
-\
-\
-`;
-}
-
 function TranscriptSearchView({ entry }: { entry: HistoryEntry }) {
   const [query, setQuery] = useState("");
 
@@ -225,7 +179,7 @@ function TranscriptDetailView({
 }) {
   return (
     <Detail
-      markdown={detailMarkdown(entry, mode)}
+      markdown={buildHistoryDetailMarkdown(entry, mode)}
       actions={
         <ActionPanel>
           {entry.status === "finished" ? (
@@ -270,6 +224,7 @@ function TranscriptDetailView({
 
 export default function Command() {
   const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [focusedEntry, setFocusedEntry] = useState<HistoryEntry | undefined>();
   const [isLoading, setIsLoading] = useState(true);
   const [viewMode, setViewMode] = useState<OutputFormat>("text");
   const [searchText, setSearchText] = useState("");
@@ -282,7 +237,24 @@ export default function Command() {
   async function refresh() {
     setIsLoading(true);
     const entries = await loadHistory();
+    const requestedFocusEntryId = await LocalStorage.getItem<string>(
+      HISTORY_FOCUS_ENTRY_KEY,
+    );
+    const nextFocusedEntry = reconcileFocusedHistoryEntry(
+      entries,
+      requestedFocusEntryId,
+      focusedEntry,
+    );
+    const requestedEntry = findFocusedHistoryEntry(
+      entries,
+      requestedFocusEntryId,
+    );
+    if (requestedFocusEntryId && requestedEntry) {
+      await LocalStorage.removeItem(HISTORY_FOCUS_ENTRY_KEY);
+    }
+
     setHistory(entries);
+    setFocusedEntry(nextFocusedEntry);
     setIsLoading(false);
   }
 
@@ -297,6 +269,37 @@ export default function Command() {
 
     bootstrap();
   }, []);
+
+  useEffect(() => {
+    const timer = setInterval(async () => {
+      const requestedFocusEntryId = await LocalStorage.getItem<string>(
+        HISTORY_FOCUS_ENTRY_KEY,
+      );
+      if (
+        !shouldConsumeHistoryFocusRequest(requestedFocusEntryId, focusedEntry)
+      ) {
+        return;
+      }
+
+      const entries = await loadHistory();
+      const nextFocusedEntry = reconcileFocusedHistoryEntry(
+        entries,
+        requestedFocusEntryId,
+        focusedEntry,
+      );
+      if (!nextFocusedEntry) {
+        return;
+      }
+
+      if (requestedFocusEntryId) {
+        await LocalStorage.removeItem(HISTORY_FOCUS_ENTRY_KEY);
+      }
+      setHistory(entries);
+      setFocusedEntry(nextFocusedEntry);
+    }, 400);
+
+    return () => clearInterval(timer);
+  }, [focusedEntry]);
 
   useEffect(() => {
     if (!history.some((entry) => entry.status === "fetching")) return;
@@ -373,6 +376,7 @@ export default function Command() {
   }
 
   async function retryFetch(entry: HistoryEntry) {
+    setFocusedEntry(undefined);
     await launchCommand({
       ownerOrAuthorName: "caasols",
       extensionName: "youtube-scribe",
@@ -534,6 +538,18 @@ export default function Command() {
     />
   );
 
+  if (focusedEntry) {
+    return (
+      <TranscriptDetailView
+        entry={focusedEntry}
+        mode={viewMode}
+        onSummarize={() => summarizeTranscript(focusedEntry)}
+        onSendToAIChat={() => sendToAIChat(focusedEntry)}
+        onRetry={() => retryFetch(focusedEntry)}
+      />
+    );
+  }
+
   return (
     <List
       isLoading={isLoading}
@@ -547,7 +563,7 @@ export default function Command() {
         <List.EmptyView
           icon={Icon.Clock}
           title="No history yet"
-          description="Run 'Get YouTube Transcript' first. This command shows all transcripts fetched previously."
+          description="Run 'Transcribe YouTube Video' first. This command shows all transcripts fetched previously."
         />
       ) : (
         filteredHistory.map(renderItem)

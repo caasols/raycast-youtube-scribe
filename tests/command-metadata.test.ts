@@ -2,6 +2,19 @@ import { describe, expect, it } from "vitest";
 import pkg from "../package.json";
 
 describe("command metadata", () => {
+  it("uses the cache-busted extension icon path", () => {
+    expect(pkg.icon).toBe("extension-icon.png");
+  });
+
+  it("renames the main command to the new transcription title", () => {
+    const command = pkg.commands.find(
+      (entry) => entry.name === "get-youtube-transcript",
+    );
+
+    expect(command).toBeDefined();
+    expect(command?.title).toBe("Transcribe YouTube Video");
+  });
+
   it("exposes the history command without arguments and with the new title", () => {
     const historyCommand = pkg.commands.find(
       (command) => command.name === "transcript-history",

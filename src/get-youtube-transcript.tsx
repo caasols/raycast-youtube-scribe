@@ -8,9 +8,7 @@ import {
   LaunchProps,
   LaunchType,
   Toast,
-  closeMainWindow,
   launchCommand,
-  popToRoot,
   showToast,
 } from "@raycast/api";
 import { FormValidation, useForm } from "@raycast/utils";
@@ -21,11 +19,13 @@ import {
   prependHistory,
 } from "./history-store";
 import { getFocusedTabContext, getFocusedYoutubeUrl } from "./lib/browser";
+import { buildHistoryDetailMarkdown } from "./lib/history-detail";
+import { getFetchCompletionDestination } from "./lib/fetch-navigation";
 import { findReusableEntry, shouldCopyEntryOutput } from "./lib/history-logic";
 import { getInitialLaunchMode } from "./lib/launch-mode";
 import { getLoadingStateText } from "./lib/loading-state";
-import { fetchTranscriptWithYtDlp, findYtDlp } from "./lib/ytdlp";
 import { materializeOutput } from "./lib/output";
+import { fetchTranscriptWithYtDlp, findYtDlp } from "./lib/ytdlp";
 import {
   extractVideoId,
   extractYoutubeUrlFromText,
@@ -47,7 +47,7 @@ type FormValues = {
   format: OutputFormat;
 };
 
-type UiMode = "bootstrapping" | "auto-running" | "manual-form";
+type UiMode = "bootstrapping" | "auto-running" | "manual-form" | "detail";
 
 type DebugStep = {
   step: string;
@@ -464,10 +464,93 @@ async function openHistory() {
   });
 }
 
+function TranscriptSearchView({ entry }: { entry: HistoryEntry }) {
+  const [query, setQuery] = useState("");
+
+  const segments = entry.rawSegments ?? [];
+  const matches = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+    if (!normalizedQuery) {
+      return segments.slice(0, 200);
+    }
+
+    return segments.filter((segment) =>
+      segment.text.toLowerCase().includes(normalizedQuery),
+    );
+  }, [query, segments]);
+
+  return (
+    <Form
+      actions={
+        <ActionPanel>
+          <Action.CopyToClipboard
+            title="Copy Output"
+            content={materializeOutput(entry, entry.format)}
+          />
+        </ActionPanel>
+      }
+    >
+      <Form.TextField
+        id="query"
+        title="Search Transcript"
+        placeholder="Type to filter transcript segments"
+        value={query}
+        onChange={setQuery}
+      />
+      <Form.Description
+        text={matches
+          .map(
+            (segment) =>
+              `${Math.round(segment.start_ms / 1000)}s  ${segment.text}`,
+          )
+          .join("\n\n")}
+      />
+    </Form>
+  );
+}
+
+function TranscriptDetailView({
+  entry,
+  onOpenHistory,
+}: {
+  entry: HistoryEntry;
+  onOpenHistory: () => Promise<void>;
+}) {
+  return (
+    <Detail
+      markdown={buildHistoryDetailMarkdown(entry, entry.format)}
+      actions={
+        <ActionPanel>
+          <Action.CopyToClipboard
+            title="Copy Output"
+            content={materializeOutput(entry, entry.format)}
+          />
+          <Action.Push
+            title="Search in Transcript"
+            icon={Icon.MagnifyingGlass}
+            target={<TranscriptSearchView entry={entry} />}
+          />
+          <Action
+            title="View Transcript History"
+            icon={Icon.Clock}
+            onAction={onOpenHistory}
+          />
+          <Action.OpenInBrowser title="Open Video" url={entry.url} />
+          <Action.CopyToClipboard
+            title="Copy Debug Log"
+            content={entry.debugLog ?? "No debug data"}
+          />
+        </ActionPanel>
+      }
+    />
+  );
+}
+
 export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
   const [isLoading, setIsLoading] = useState(false);
   const [bootstrapped, setBootstrapped] = useState(false);
   const [uiMode, setUiMode] = useState<UiMode>("bootstrapping");
+  const [detailEntry, setDetailEntry] = useState<HistoryEntry | undefined>();
 
   const defaults = useMemo(
     () => ({
@@ -494,7 +577,12 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
         }
 
         if (fromCache) {
-          await openHistory();
+          if (getFetchCompletionDestination(entry) === "detail") {
+            setDetailEntry(entry);
+            setUiMode("detail");
+          } else {
+            await openHistory();
+          }
 
           await showToast({
             style:
@@ -509,18 +597,22 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
                 : entry.status === "fetching"
                   ? "Transcript fetch already in progress"
                   : "Transcript fetch failed",
-            message: "Opened transcript history",
+            message:
+              entry.status === "finished"
+                ? "Opened transcript details"
+                : "Opened transcript history",
           });
           return;
         }
 
+        setDetailEntry(entry);
+        setUiMode("detail");
         await showToast({
           style: Toast.Style.Success,
           title: "Transcript ready",
-          message: `Copied to clipboard • ${entry.segmentCount} segments • ${entry.language ?? "auto"}`,
+          message: `Opened transcript details • ${entry.segmentCount} segments • ${entry.language ?? "auto"}`,
         });
-
-        await popToRoot();
+        return;
       } catch (error) {
         await showToast({
           style: Toast.Style.Failure,
@@ -590,7 +682,12 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
         }
 
         if (fromCache) {
-          await openHistory();
+          if (getFetchCompletionDestination(entry) === "detail") {
+            setDetailEntry(entry);
+            setUiMode("detail");
+          } else {
+            await openHistory();
+          }
 
           await showToast({
             style:
@@ -605,17 +702,22 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
                 : entry.status === "fetching"
                   ? "Transcript fetch already in progress"
                   : "Transcript fetch failed",
-            message: "Opened transcript history",
+            message:
+              entry.status === "finished"
+                ? "Opened transcript details"
+                : "Opened transcript history",
           });
           return;
         }
 
-        await closeMainWindow();
+        setDetailEntry(entry);
+        setUiMode("detail");
         await showToast({
           style: Toast.Style.Success,
           title: "Transcript ready",
-          message: `Copied to clipboard • ${entry.segmentCount} segments • ${entry.language ?? "auto"}`,
+          message: `Opening transcript details • ${entry.segmentCount} segments • ${entry.language ?? "auto"}`,
         });
+        return;
       } catch (error) {
         await showToast({
           style: Toast.Style.Failure,
@@ -637,6 +739,12 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
   ]);
 
   if (uiMode !== "manual-form") {
+    if (uiMode === "detail" && detailEntry) {
+      return (
+        <TranscriptDetailView entry={detailEntry} onOpenHistory={openHistory} />
+      );
+    }
+
     const loadingState = getLoadingStateText(
       uiMode === "auto-running" ? "auto-running" : "bootstrapping",
     );

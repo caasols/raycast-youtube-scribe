@@ -12,9 +12,9 @@ describe("getLoadingStateText", () => {
 
   it("describes the auto-run state", () => {
     expect(getLoadingStateText("auto-running")).toEqual({
-      title: "Opening Transcript History",
+      title: "Preparing Transcript Details",
       description:
-        "Fetching the detected YouTube transcript now. History will open automatically.",
+        "Fetching the detected YouTube transcript now. The detail view will open automatically when it is ready.",
     });
   });
 });

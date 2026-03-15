@@ -13,7 +13,7 @@
   "commands": [
     {
       "name": "get-youtube-transcript",
-      "title": "Get YouTube Transcript",
+      "title": "Transcribe YouTube Video",
       "subtitle": "YouTube Scribe",
       "description": "Fetch and copy a transcript from a YouTube video",
       "mode": "view",
