@@ -20,6 +20,7 @@ import { isRetryable } from "../../lib/error-classification";
 import type { HistoryEntry, ExportFormat } from "../../types";
 import { TranscriptSummaryView } from "../transcript-history/transcript-summary-view";
 import { TranscriptAskView } from "../transcript-history/transcript-ask-view";
+import { getDefaultAIAction } from "../../lib/preferences";
 
 export function TranscriptDetailView({
   entry,
@@ -30,6 +31,27 @@ export function TranscriptDetailView({
   onRetry?: () => void;
   onOpenHistory?: () => Promise<void>;
 }) {
+  const defaultAI = getDefaultAIAction();
+
+  const askAction = (
+    <Action.Push
+      key="ask"
+      title="Ask AI About Transcript"
+      icon={Icon.Stars}
+      target={<TranscriptAskView entry={entry} />}
+      shortcut={{ modifiers: ["cmd", "shift"], key: "a" }}
+    />
+  );
+  const summarizeAction = (
+    <Action.Push
+      key="summarize"
+      title="Summarize Transcript"
+      icon={Icon.BulletPoints}
+      target={<TranscriptSummaryView entry={entry} />}
+      shortcut={{ modifiers: ["cmd", "shift"], key: "s" }}
+    />
+  );
+
   return (
     <Detail
       markdown={buildHistoryDetailMarkdown(entry, "text", {
@@ -39,18 +61,8 @@ export function TranscriptDetailView({
         <ActionPanel>
           {entry.status === "finished" && (
             <>
-              <Action.Push
-                title="Ask AI About Transcript"
-                icon={Icon.Stars}
-                target={<TranscriptAskView entry={entry} />}
-                shortcut={{ modifiers: ["cmd", "shift"], key: "a" }}
-              />
-              <Action.Push
-                title="Summarize Transcript"
-                icon={Icon.BulletPoints}
-                target={<TranscriptSummaryView entry={entry} />}
-                shortcut={{ modifiers: ["cmd", "shift"], key: "s" }}
-              />
+              {defaultAI === "summarize" ? summarizeAction : askAction}
+              {defaultAI === "summarize" ? askAction : summarizeAction}
               <ActionPanel.Submenu title="Export" icon={Icon.Download}>
                 {(
                   [

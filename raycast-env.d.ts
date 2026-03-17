@@ -8,6 +8,8 @@
 /* eslint-disable @typescript-eslint/ban-types */
 
 type ExtensionPreferences = {
+  /** Default AI Action - Choose which AI action is triggered by default when pressing Enter on a transcript. */
+  "defaultAIAction": "summarize" | "ask",
   /** Summarize Prompt Template - Custom prompt template for transcript summaries. Supported variables: {{title}}, {{url}}, {{transcript}} */
   "summarizePromptTemplate": string,
   /** History Limit - Maximum number of transcript entries to keep in history. */

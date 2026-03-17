@@ -44,12 +44,17 @@ function TranscriptAnswerView({
     }
   }, [isLoading, data, error, entry.id]);
 
-  const markdown = error
-    ? `# Answer Failed\n\n${error.message}`
+  const body = error
+    ? `**Error:** ${error.message}`
     : data || "_Generating answer..._";
+
+  const markdown = `# ${question}
+
+${body}`;
 
   return (
     <Detail
+      navigationTitle={question}
       isLoading={isLoading}
       markdown={markdown}
       actions={

@@ -5,6 +5,7 @@ type ExtensionPreferences = {
   summarizePromptTemplate?: string;
   historyLimit?: string;
   historyMaxAgeDays?: string;
+  defaultAIAction?: string;
 };
 
 export function getSummarizePromptTemplate(): string {
@@ -19,6 +20,11 @@ export function getHistoryLimit(): number {
   const preferences = getPreferenceValues<ExtensionPreferences>();
   const value = parseInt(preferences.historyLimit ?? "100", 10);
   return Number.isNaN(value) || value <= 0 ? 100 : value;
+}
+
+export function getDefaultAIAction(): "summarize" | "ask" {
+  const preferences = getPreferenceValues<ExtensionPreferences>();
+  return preferences.defaultAIAction === "ask" ? "ask" : "summarize";
 }
 
 export function getHistoryMaxAgeDays(): number | null {

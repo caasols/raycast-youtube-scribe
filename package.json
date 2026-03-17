@@ -11,6 +11,18 @@
   ],
   "preferences": [
     {
+      "name": "defaultAIAction",
+      "title": "Default AI Action",
+      "description": "Choose which AI action is triggered by default when pressing Enter on a transcript.",
+      "type": "dropdown",
+      "required": false,
+      "default": "summarize",
+      "data": [
+        { "title": "Summarize Transcript", "value": "summarize" },
+        { "title": "Ask AI About Transcript", "value": "ask" }
+      ]
+    },
+    {
       "name": "summarizePromptTemplate",
       "title": "Summarize Prompt Template",
       "description": "Custom prompt template for transcript summaries. Supported variables: {{title}}, {{url}}, {{transcript}}",

@@ -30,6 +30,7 @@ import { retryFetch as retryFetchAction } from "./commands/transcript-history/hi
 import { TranscriptSearchView } from "./commands/shared/transcript-search-view";
 import { TranscriptSummaryView } from "./commands/transcript-history/transcript-summary-view";
 import { TranscriptAskView } from "./commands/transcript-history/transcript-ask-view";
+import { getDefaultAIAction } from "./lib/preferences";
 
 function fuzzyMatch(text: string, query: string): boolean {
   const t = text.toLowerCase();
@@ -143,22 +144,34 @@ export default function Command(
     );
   }, [history, searchText]);
 
-  const rowActions = (entry: HistoryEntry) => (
+  const defaultAI = getDefaultAIAction();
+
+  const rowActions = (entry: HistoryEntry) => {
+    const askAction = (
+      <Action.Push
+        key="ask"
+        title="Ask AI About Transcript"
+        icon={Icon.Stars}
+        target={<TranscriptAskView entry={entry} />}
+        shortcut={{ modifiers: ["cmd", "shift"], key: "a" }}
+      />
+    );
+    const summarizeAction = (
+      <Action.Push
+        key="summarize"
+        title="Summarize Transcript"
+        icon={Icon.BulletPoints}
+        target={<TranscriptSummaryView entry={entry} />}
+        shortcut={{ modifiers: ["cmd", "shift"], key: "s" }}
+      />
+    );
+
+    return (
     <ActionPanel>
       {entry.status === "finished" ? (
         <>
-          <Action.Push
-            title="Ask AI About Transcript"
-            icon={Icon.Stars}
-            target={<TranscriptAskView entry={entry} />}
-            shortcut={{ modifiers: ["cmd", "shift"], key: "a" }}
-          />
-          <Action.Push
-            title="Summarize Transcript"
-            icon={Icon.BulletPoints}
-            target={<TranscriptSummaryView entry={entry} />}
-            shortcut={{ modifiers: ["cmd", "shift"], key: "s" }}
-          />
+          {defaultAI === "summarize" ? summarizeAction : askAction}
+          {defaultAI === "summarize" ? askAction : summarizeAction}
           <Action.CopyToClipboard
             title="Copy Transcript"
             content={materializeOutput(entry, "text")}
@@ -275,6 +288,7 @@ export default function Command(
       )}
     </ActionPanel>
   );
+  };
 
   const renderItem = (entry: HistoryEntry) => (
     <List.Item

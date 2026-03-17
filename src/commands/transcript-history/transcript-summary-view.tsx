@@ -37,12 +37,18 @@ export function TranscriptSummaryView({ entry }: { entry: HistoryEntry }) {
     savedRef.current = false;
   }, [prompt]);
 
-  const markdown = error
-    ? `# Summary Failed\n\n${error.message}`
+  const title = entry.title ?? entry.videoId;
+  const body = error
+    ? `**Error:** ${error.message}`
     : data || "_Generating summary..._";
+
+  const markdown = `# ${title}
+
+${body}`;
 
   return (
     <Detail
+      navigationTitle="Summary"
       isLoading={isLoading}
       markdown={markdown}
       actions={
