@@ -45,8 +45,8 @@ function TranscriptAnswerView({
   }, [isLoading, data, error, entry.id]);
 
   const markdown = error
-    ? `# Answer failed\n\n${error.message}`
-    : data || "# Thinking...\n\nPlease wait.";
+    ? `# Answer Failed\n\n${error.message}`
+    : data || "_Generating answer..._";
 
   return (
     <Detail
@@ -72,7 +72,7 @@ function TranscriptAnswerView({
                 await showToast({
                   style: Toast.Style.Failure,
                   title: "Save failed",
-                  message: err instanceof Error ? err.message : "Unknown error",
+                  message: err instanceof Error ? err.message : "Unknown error.",
                 });
               }
             }}
@@ -166,7 +166,7 @@ export function TranscriptAskView({ entry }: { entry: HistoryEntry }) {
           ))}
         </List.Section>
       ) : null}
-      <List.Section title="Suggested Prompts">
+      <List.Section title="Suggested Questions">
         {suggestedQuestions.map((item) => (
           <List.Item
             key={`suggested-${item}`}

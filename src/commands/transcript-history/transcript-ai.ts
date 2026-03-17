@@ -63,7 +63,7 @@ export function buildSuggestedTranscriptQuestions(
     `What are the main ideas in "${title}"?`,
     `What action items or next steps are mentioned in "${title}"?`,
     `Which tools, products, or people are mentioned in "${title}"?`,
-    `Give me the most important takeaways from "${title}".`,
+    `What are the most important takeaways from "${title}"?`,
   ];
 }
 

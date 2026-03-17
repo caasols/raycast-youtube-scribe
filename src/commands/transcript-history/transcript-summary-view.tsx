@@ -38,8 +38,8 @@ export function TranscriptSummaryView({ entry }: { entry: HistoryEntry }) {
   }, [prompt]);
 
   const markdown = error
-    ? `# Transcript Summary\n\n## Summary Failed\n\n${error.message}`
-    : `# Transcript Summary\n\n${data || "_Generating summary..._"}`;
+    ? `# Summary Failed\n\n${error.message}`
+    : data || "_Generating summary..._";
 
   return (
     <Detail
@@ -69,7 +69,7 @@ export function TranscriptSummaryView({ entry }: { entry: HistoryEntry }) {
                 await showToast({
                   style: Toast.Style.Failure,
                   title: "Save failed",
-                  message: err instanceof Error ? err.message : "Unknown error",
+                  message: err instanceof Error ? err.message : "Unknown error.",
                 });
               }
             }}
@@ -80,7 +80,7 @@ export function TranscriptSummaryView({ entry }: { entry: HistoryEntry }) {
             onAction={revalidate}
           />
           <Action.CopyToClipboard
-            title="Copy Summary Prompt"
+            title="Copy Prompt"
             content={prompt}
           />
           <Action.OpenInBrowser title="Open Video" url={entry.url} />

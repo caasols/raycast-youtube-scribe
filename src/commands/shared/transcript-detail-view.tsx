@@ -107,7 +107,7 @@ export function TranscriptDetailView({
                       content={entry.aiSummary}
                     />
                     <Action
-                      title="Save AI Summary"
+                      title="Save AI Summary to File"
                       icon={Icon.SaveDocument}
                       onAction={async () => {
                         const filename = `${sanitizeFilename(entry.title)}-summary.md`;

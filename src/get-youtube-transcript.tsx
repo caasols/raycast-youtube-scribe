@@ -284,7 +284,7 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
         await showToast({
           style: Toast.Style.Success,
           title: "Transcript ready",
-          message: `Opening transcript details • ${finished.segmentCount} segments • ${finished.language ?? "auto"}.`,
+          message: `Opened transcript details • ${finished.segmentCount} segments • ${finished.language ?? "auto"}.`,
         });
         return;
       } catch (error) {

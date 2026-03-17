@@ -53,7 +53,7 @@ export default async function Command(
       title: "Transcript ready",
       message: entry.title,
       primaryAction: {
-        title: "Open Transcript",
+        title: "View Transcript",
         onAction: () => {
           launchCommand({
             name: "transcript-history",

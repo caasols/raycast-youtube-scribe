@@ -54,7 +54,7 @@
       "name": "get-youtube-transcript",
       "title": "Transcribe YouTube Video",
       "subtitle": "YouTube Transcribe",
-      "description": "Fetch and copy a transcript from a YouTube video",
+      "description": "Fetch, browse, and export a transcript from a YouTube video",
       "mode": "view",
       "arguments": [
         {

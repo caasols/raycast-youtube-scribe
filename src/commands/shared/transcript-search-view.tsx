@@ -28,7 +28,7 @@ export function TranscriptSearchView({ entry }: { entry: HistoryEntry }) {
       onSearchTextChange={setQuery}
       filtering={false}
       isShowingDetail={hasQuery}
-      searchBarPlaceholder="Search transcript (fuzzy, timeline order)"
+      searchBarPlaceholder="Search transcript..."
     >
       {matches.map((chunk) => (
         <List.Item
