@@ -4,16 +4,13 @@ import {
 } from "../../lib/navigation-intents";
 import type { HistoryEntry } from "../../types";
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type LaunchCommandFn = (...args: any[]) => Promise<void>;
+
 export type RetryFetchDeps = {
   clearFocusedEntry: () => void;
   setLocalStorageItem: (key: string, value: string) => Promise<void>;
-  launchCommand: (options: {
-    ownerOrAuthorName: string;
-    extensionName: string;
-    name: string;
-    type: string;
-    arguments?: Record<string, string>;
-  }) => Promise<void>;
+  launchCommand: LaunchCommandFn;
 };
 
 export async function retryFetch(entry: HistoryEntry, deps: RetryFetchDeps) {

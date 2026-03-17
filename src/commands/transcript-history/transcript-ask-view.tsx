@@ -170,7 +170,7 @@ export function TranscriptAskView({ entry }: { entry: HistoryEntry }) {
         {suggestedQuestions.map((item) => (
           <List.Item
             key={`suggested-${item}`}
-            icon={Icon.Sparkles}
+            icon={Icon.Stars}
             title={item}
             actions={
               <ActionPanel>

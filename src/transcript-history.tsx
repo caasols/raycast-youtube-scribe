@@ -1,6 +1,7 @@
 import {
   Action,
   ActionPanel,
+  Alert,
   Color,
   Icon,
   LaunchProps,
@@ -123,7 +124,7 @@ export default function Command(
       title: "Clear transcript history?",
       message:
         "This removes all previously fetched transcripts from local history.",
-      primaryAction: { title: "Clear", style: Action.Style.Destructive },
+      primaryAction: { title: "Clear", style: Alert.ActionStyle.Destructive },
     });
 
     if (!ok) return;

@@ -9,7 +9,11 @@
 
 type ExtensionPreferences = {
   /** Summarize Prompt Template - Custom prompt template for transcript summaries. Supported variables: {{title}}, {{url}}, {{transcript}} */
-  "summarizePromptTemplate": string
+  "summarizePromptTemplate": string,
+  /** History Limit - Maximum number of transcript entries to keep in history. */
+  "historyLimit": "50" | "100" | "200" | "500",
+  /** History Max Age - Automatically remove entries older than this. Set to 'Unlimited' to keep all entries. */
+  "historyMaxAgeDays": "7" | "30" | "90" | "365" | "0"
 }
 
 /** Preferences accessible in all the extension's commands */
