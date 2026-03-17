@@ -4,7 +4,7 @@
 ![React](https://img.shields.io/badge/React-black?logo=react&style=flat)
 ![TypeScript](https://img.shields.io/badge/TypeScript-black?logo=typescript&style=flat)
 
-A Raycast extension for fetching, browsing, and exporting YouTube transcripts — with AI-powered summaries and Q&A built in. Auto-detects videos from your clipboard or focused browser tab, fetches captions via [yt-dlp](https://github.com/yt-dlp/yt-dlp), and keeps a searchable transcript history.
+A Raycast extension for fetching, browsing, and exporting YouTube transcripts with AI-powered summaries and Q&A built in. Auto-detects videos from your clipboard or focused browser tab, fetches captions via [yt-dlp](https://github.com/yt-dlp/yt-dlp), and keeps a searchable transcript history.
 
 ## Installation
 
@@ -24,22 +24,22 @@ npm install && npm run dev
 
 ### Core Features
 
-- **Auto-detection** — Picks up YouTube URLs from your clipboard or the focused browser tab
-- **Transcript fetching** — Downloads captions in any available language via yt-dlp
-- **Transcript history** — Caches transcripts per video + language for instant reuse
-- **Full-text search** — Search across all cached transcripts with highlighted snippet previews
+- **Auto-detection**: Picks up YouTube URLs from your clipboard or the focused browser tab
+- **Transcript fetching**: Downloads captions in any available language via yt-dlp
+- **Transcript history**: Caches transcripts per video + language for instant reuse
+- **Full-text search**: Search across all cached transcripts with highlighted snippet previews
 
 ### AI Actions
 
-- **Summarize** — Generate a structured summary of any transcript using Raycast AI
-- **Ask AI** — Ask follow-up questions about a transcript in a conversational view
-- **Custom prompt** — Configure your own summarize prompt template with variable placeholders
+- **Summarize**: Generate a structured summary of any transcript using Raycast AI
+- **Ask AI**: Ask follow-up questions about a transcript in a conversational view
+- **Custom prompt**: Configure your own summarize prompt template with variable placeholders
 
 ### Export & Output
 
-- **Multiple formats** — Export transcripts as plain text, JSON, SRT, or VTT
-- **Copy to clipboard** — One-click copy of full transcript or individual segments
-- **Rich metadata** — Stored video info including channel, duration, tags, and thumbnail
+- **Multiple formats**: Export transcripts as plain text, JSON, SRT, or VTT
+- **Copy to clipboard**: One-click copy of full transcript or individual segments
+- **Rich metadata**: Stored video info including channel, duration, tags, and thumbnail
 
 ## Commands
 
@@ -58,7 +58,7 @@ npm install && npm run dev
 
 ## Configuration
 
-Open **Raycast Preferences → Extensions → YouTube Transcribe** to customize:
+Open **Raycast Preferences > Extensions > YouTube Transcribe** to customize:
 
 | Preference | Description | Default |
 | --- | --- | --- |
