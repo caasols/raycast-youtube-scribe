@@ -6,7 +6,7 @@
 
 A Raycast extension for fetching, browsing, and exporting YouTube transcripts — with AI-powered summaries and Q&A built in. Auto-detects videos from your clipboard or focused browser tab, fetches captions via [yt-dlp](https://github.com/yt-dlp/yt-dlp), and keeps a searchable transcript history.
 
-## 📥 Installation
+## Installation
 
 ### Option 1: Raycast Store
 
@@ -20,7 +20,7 @@ cd raycast-youtube-scribe
 npm install && npm run dev
 ```
 
-## ✨ Features
+## Features
 
 ### Core Features
 
@@ -41,14 +41,14 @@ npm install && npm run dev
 - **Copy to clipboard** — One-click copy of full transcript or individual segments
 - **Rich metadata** — Stored video info including channel, duration, tags, and thumbnail
 
-## 🧭 Commands
+## Commands
 
 | Command | Description |
 | --- | --- |
 | **Transcribe YouTube Video** | Auto-detects a YouTube URL and fetches its transcript. Accepts an optional language code argument (e.g. `en`, `pt`, `es`). |
 | **View Transcript History** | Browse all cached transcripts with search, preview, AI actions, and export. |
 
-## 📋 Prerequisites
+## Prerequisites
 
 - [yt-dlp](https://github.com/yt-dlp/yt-dlp) installed locally:
   ```bash
@@ -56,7 +56,7 @@ npm install && npm run dev
   ```
 - [Raycast](https://raycast.com) installed
 
-## ⚙️ Configuration
+## Configuration
 
 Open **Raycast Preferences → Extensions → YouTube Transcribe** to customize:
 
@@ -66,7 +66,7 @@ Open **Raycast Preferences → Extensions → YouTube Transcribe** to customize:
 | **History Limit** | Maximum number of transcript entries to keep in history. | 100 entries |
 | **History Max Age** | Automatically remove entries older than this threshold. | Unlimited |
 
-## 🔧 Troubleshooting
+## Troubleshooting
 
 1. Verify yt-dlp is installed and available in your `$PATH`:
    ```bash
@@ -77,7 +77,7 @@ Open **Raycast Preferences → Extensions → YouTube Transcribe** to customize:
 
 For persistent issues, [open an issue](https://github.com/caasols/raycast-youtube-scribe/issues) on GitHub with reproduction steps.
 
-## 🤝 Contributing
+## Contributing
 
 1. Fork the repository
 2. Create a feature branch: `git checkout -b my-new-feature`
@@ -87,13 +87,13 @@ For persistent issues, [open an issue](https://github.com/caasols/raycast-youtub
 
 Issues and pull requests are welcome. Please open a discussion first if you plan to work on a larger change so we can align on the approach.
 
-## ⭐ Support
+## Support
 
 If this extension saves you time:
 - Star the [GitHub repository](https://github.com/caasols/raycast-youtube-scribe)
 - Share it with coworkers who live in their command bar
 - Report bugs or suggest enhancements via [GitHub Issues](https://github.com/caasols/raycast-youtube-scribe/issues)
 
-## 📄 License
+## License
 
 Released under the [MIT License](./LICENSE).
