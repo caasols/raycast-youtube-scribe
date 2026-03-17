@@ -64,7 +64,7 @@ describe("history actions", () => {
       'What are the main ideas in "Video"?',
       'What action items or next steps are mentioned in "Video"?',
       'Which tools, products, or people are mentioned in "Video"?',
-      'Give me the most important takeaways from "Video".',
+      'What are the most important takeaways from "Video"?',
     ]);
   });
 

@@ -12,7 +12,7 @@ import { BROWSER_COOKIE_MAP } from "./browser";
 import { buildJsonOutput, buildTextOutput } from "./output";
 import { normalizeLanguage } from "./youtube";
 import { parseVtt } from "./vtt";
-import { TranscriptDiagnostics, TranscriptResult } from "../types";
+import { TranscriptDiagnostics, TranscriptResult, VideoMetadata } from "../types";
 import {
   normalizeVideoMetadata,
   YtDlpVideoMetadataPayload,

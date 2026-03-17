@@ -1,6 +1,6 @@
 import type { TranscriptSegment } from "../types";
 
-export function normalizeSegmentText(text: string): string {
+function normalizeSegmentText(text: string): string {
   return text.replace(/\s+/g, " ").trim();
 }
 
