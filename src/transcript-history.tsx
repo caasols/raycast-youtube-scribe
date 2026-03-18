@@ -197,10 +197,6 @@ export default function Command(
             url={entry.url}
             shortcut={{ modifiers: ["cmd"], key: "o" }}
           />
-          <Action.CopyToClipboard
-            title="Copy Debug Log"
-            content={entry.debugLog ?? "No debug data"}
-          />
           <Action
             title="Remove from History"
             style={Action.Style.Destructive}
@@ -266,10 +262,6 @@ export default function Command(
             title="Open Video"
             url={entry.url}
             shortcut={{ modifiers: ["cmd"], key: "o" }}
-          />
-          <Action.CopyToClipboard
-            title="Copy Debug Log"
-            content={entry.debugLog ?? "No debug data"}
           />
           <Action
             title="Remove from History"

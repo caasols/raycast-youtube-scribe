@@ -374,15 +374,15 @@ export function renderHistoryDetailMarkdown(
   const blocks = [
     `${"#".repeat(viewModel.title.level)} ${viewModel.title.text}`,
     "---",
-    `![${viewModel.thumbnail.alt}](${viewModel.thumbnail.url})`,
-    "---",
     viewModel.primaryPills.length > 0
       ? renderPills(viewModel.primaryPills)
       : "",
+    `![${viewModel.thumbnail.alt}](${viewModel.thumbnail.url})`,
+    viewModel.body.markdown,
+    viewModel.secondaryPills.length > 0 ? "---" : "",
     viewModel.secondaryPills.length > 0
       ? renderPills(viewModel.secondaryPills)
       : "",
-    viewModel.body.markdown,
   ].filter(Boolean);
 
   return `${blocks.join("\n\n")}\n`;

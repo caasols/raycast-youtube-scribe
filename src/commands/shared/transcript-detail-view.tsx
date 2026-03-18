@@ -66,28 +66,14 @@ export function TranscriptDetailView({
               <ActionPanel.Submenu title="Export" icon={Icon.Download}>
                 {(
                   [
-                    ["plain", "Copy as Plain Text"],
-                    ["readable", "Copy as Readable Text"],
-                    ["json", "Copy as JSON"],
-                    ["srt", "Copy as SRT"],
-                  ] as [ExportFormat, string][]
-                ).map(([format, title]) => (
-                  <Action.CopyToClipboard
-                    key={`copy-${format}`}
-                    title={title}
-                    content={exportTranscript(entry, format)}
-                  />
-                ))}
-                {(
-                  [
-                    ["plain", "Save as Plain Text"],
-                    ["readable", "Save as Readable Text"],
-                    ["json", "Save as JSON"],
-                    ["srt", "Save as SRT"],
+                    ["plain", "Export as Plain Text"],
+                    ["readable", "Export as Readable Text"],
+                    ["json", "Export as JSON"],
+                    ["srt", "Export as SRT"],
                   ] as [ExportFormat, string][]
                 ).map(([format, title]) => (
                   <Action
-                    key={`save-${format}`}
+                    key={`export-${format}`}
                     title={title}
                     icon={Icon.SaveDocument}
                     onAction={async () => {
@@ -98,13 +84,13 @@ export function TranscriptDetailView({
                         );
                         await showToast({
                           style: Toast.Style.Success,
-                          title: "Saved",
+                          title: "Exported",
                           message: buildExportFilename(entry, format),
                         });
                       } catch (err) {
                         await showToast({
                           style: Toast.Style.Failure,
-                          title: "Save failed",
+                          title: "Export failed",
                           message:
                             err instanceof Error ? err.message : String(err),
                         });
@@ -113,34 +99,28 @@ export function TranscriptDetailView({
                   />
                 ))}
                 {entry.aiSummary && (
-                  <>
-                    <Action.CopyToClipboard
-                      title="Copy AI Summary"
-                      content={entry.aiSummary}
-                    />
-                    <Action
-                      title="Save AI Summary to File"
-                      icon={Icon.SaveDocument}
-                      onAction={async () => {
-                        const filename = `${sanitizeFilename(entry.title)}-summary.md`;
-                        try {
-                          await saveToDownloads(filename, entry.aiSummary!);
-                          await showToast({
-                            style: Toast.Style.Success,
-                            title: "Saved",
-                            message: filename,
-                          });
-                        } catch (err) {
-                          await showToast({
-                            style: Toast.Style.Failure,
-                            title: "Save failed",
-                            message:
-                              err instanceof Error ? err.message : String(err),
-                          });
-                        }
-                      }}
-                    />
-                  </>
+                  <Action
+                    title="Export AI Summary"
+                    icon={Icon.SaveDocument}
+                    onAction={async () => {
+                      const filename = `${sanitizeFilename(entry.title)}-summary.md`;
+                      try {
+                        await saveToDownloads(filename, entry.aiSummary!);
+                        await showToast({
+                          style: Toast.Style.Success,
+                          title: "Exported",
+                          message: filename,
+                        });
+                      } catch (err) {
+                        await showToast({
+                          style: Toast.Style.Failure,
+                          title: "Export failed",
+                          message:
+                            err instanceof Error ? err.message : String(err),
+                        });
+                      }
+                    }}
+                  />
                 )}
               </ActionPanel.Submenu>
               <Action.Push
@@ -182,15 +162,19 @@ export function TranscriptDetailView({
               onAction={onOpenHistory}
             />
           )}
-          <Action.CopyToClipboard
-            title="Copy Diagnostic Report"
-            content={buildDiagnosticReport(entry)}
-            shortcut={{ modifiers: ["cmd", "shift"], key: "d" }}
-          />
-          <Action.CopyToClipboard
-            title="Copy Debug Log"
-            content={entry.debugLog ?? "No debug data"}
-          />
+          {entry.status === "error" && (
+            <>
+              <Action.CopyToClipboard
+                title="Copy Diagnostic Report"
+                content={buildDiagnosticReport(entry)}
+                shortcut={{ modifiers: ["cmd", "shift"], key: "d" }}
+              />
+              <Action.CopyToClipboard
+                title="Copy Debug Log"
+                content={entry.debugLog ?? "No debug data"}
+              />
+            </>
+          )}
         </ActionPanel>
       }
     />

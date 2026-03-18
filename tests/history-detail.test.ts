@@ -97,8 +97,18 @@ describe("buildHistoryDetailMarkdown", () => {
     );
     expect(markdown).toContain("# Video");
     expect(markdown).toContain(
-      "# Video\n\n---\n\n![](https://img.youtube.com/vi/abc/mqdefault.jpg)\n\n---\n\n`Ready` `Rick Astley`",
+      "# Video\n\n---\n\n`Ready` `Rick Astley`",
     );
+    // Verify order: title, then pills, then thumbnail
+    const titleIdx = markdown.indexOf("# Video");
+    const pillsIdx = markdown.indexOf("`Ready`");
+    const thumbIdx = markdown.indexOf("![](https://img.youtube.com/vi/abc/mqdefault.jpg)");
+    const bodyIdx = markdown.indexOf("hello world");
+    const tagsIdx = markdown.indexOf("`music`");
+    expect(titleIdx).toBeLessThan(pillsIdx);
+    expect(pillsIdx).toBeLessThan(thumbIdx);
+    expect(thumbIdx).toBeLessThan(bodyIdx);
+    expect(bodyIdx).toBeLessThan(tagsIdx);
     expect(markdown).not.toContain("`@RickAstleyYT`");
     expect(markdown).toContain("`Ready`");
     expect(markdown).toContain("`auto`");
