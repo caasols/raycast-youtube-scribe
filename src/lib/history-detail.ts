@@ -1,4 +1,5 @@
 import { materializeDisplayOutput } from "./output";
+import { countWords, formatCompactNumber, readingTimeLabel } from "./text-utils";
 import type {
   HistoryEntry,
   OutputFormat,
@@ -35,6 +36,7 @@ export type HistoryDetailViewModel = {
   thumbnail: HistoryDetailThumbnail;
   primaryPills: string[];
   secondaryPills: string[];
+  summaryPreview?: string;
   body: HistoryDetailBody;
 };
 
@@ -141,12 +143,49 @@ function contentKindLabel(kind?: YoutubeContentKind): string | undefined {
   }
 }
 
+function transcriptWordCount(entry: HistoryEntry): number {
+  if (entry.status !== "finished" || !entry.rawSegments?.length) return 0;
+  return countWords(entry.rawSegments.map((s) => s.text).join(" "));
+}
+
+function wordCountLabel(entry: HistoryEntry): string | undefined {
+  const words = transcriptWordCount(entry);
+  if (words === 0) return undefined;
+  return `${words.toLocaleString()} words`;
+}
+
+function readingTimePill(entry: HistoryEntry): string | undefined {
+  const words = transcriptWordCount(entry);
+  if (words === 0) return undefined;
+  return readingTimeLabel(words);
+}
+
+function engagementPills(entry: HistoryEntry): string[] {
+  const meta = entry.videoMetadata;
+  if (!meta) return [];
+
+  return [
+    meta.viewCount != null && meta.viewCount > 0
+      ? `${formatCompactNumber(meta.viewCount)} views`
+      : undefined,
+    meta.likeCount != null && meta.likeCount > 0
+      ? `${formatCompactNumber(meta.likeCount)} likes`
+      : undefined,
+    meta.commentCount != null && meta.commentCount > 0
+      ? `${formatCompactNumber(meta.commentCount)} comments`
+      : undefined,
+  ].filter((v): v is string => Boolean(v));
+}
+
 function primaryPills(entry: HistoryEntry): string[] {
   return [
     statusText(entry),
     contentKindLabel(entry.contentKind),
     entry.videoMetadata?.channelName,
     durationLabel(entry),
+    wordCountLabel(entry),
+    readingTimePill(entry),
+    ...engagementPills(entry),
     entry.language ?? "auto",
     savedLabel(entry),
   ].filter((value): value is string => Boolean(value));
@@ -324,6 +363,7 @@ function renderStructuredDebugLog(
 function detailBody(
   entry: HistoryEntry,
   mode: OutputFormat,
+  videoUrl?: string,
 ): HistoryDetailBody {
   if (entry.status === "fetching") {
     return {
@@ -341,12 +381,30 @@ function detailBody(
 
   return {
     kind: "transcript",
-    markdown: materializeDisplayOutput(entry, mode),
+    markdown: materializeDisplayOutput(entry, mode, videoUrl),
   };
 }
 
 function renderPills(pills: string[]): string {
   return pills.map((pill) => `\`${pill}\``).join(" ");
+}
+
+function summaryPreview(
+  entry: HistoryEntry,
+  surface: HistoryDetailSurface,
+): string | undefined {
+  const summaries = entry.aiSummaries;
+  if (!summaries?.length) return undefined;
+
+  // Prefer the first pinned summary, otherwise most recent
+  const pinned = summaries.find((s) => s.pinned);
+  const summary = pinned ?? summaries[summaries.length - 1];
+  const content = summary.content;
+
+  if (surface === "history-pane" && content.length > 500) {
+    return `${content.slice(0, 497)}...`;
+  }
+  return content;
 }
 
 export function buildHistoryDetailViewModel(
@@ -364,7 +422,8 @@ export function buildHistoryDetailViewModel(
     thumbnail: detailThumbnail(entry),
     primaryPills: primaryPills(entry),
     secondaryPills: secondaryPills(entry),
-    body: detailBody(entry, mode),
+    summaryPreview: summaryPreview(entry, surface),
+    body: detailBody(entry, mode, entry.url),
   };
 }
 
@@ -378,6 +437,9 @@ export function renderHistoryDetailMarkdown(
       ? renderPills(viewModel.primaryPills)
       : "",
     `![${viewModel.thumbnail.alt}](${viewModel.thumbnail.url})`,
+    viewModel.summaryPreview
+      ? `## AI Summary\n\n${viewModel.summaryPreview}\n\n---`
+      : "",
     viewModel.body.markdown,
     viewModel.secondaryPills.length > 0 ? "---" : "",
     viewModel.secondaryPills.length > 0

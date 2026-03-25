@@ -11,6 +11,15 @@
   ],
   "preferences": [
     {
+      "name": "autoSummarize",
+      "title": "Auto-Summarize on Fetch",
+      "description": "Automatically generate an AI summary in the background whenever a new transcript is fetched.",
+      "type": "checkbox",
+      "required": false,
+      "default": false,
+      "label": "Summarize new transcripts automatically"
+    },
+    {
       "name": "defaultAIAction",
       "title": "Default AI Action",
       "description": "Choose which AI action is triggered by default when pressing Enter on a transcript.",
@@ -18,8 +27,8 @@
       "required": false,
       "default": "summarize",
       "data": [
-        { "title": "Summarize Transcript", "value": "summarize" },
-        { "title": "Ask AI About Transcript", "value": "ask" }
+        { "title": "Summarize Transcript with AI", "value": "summarize" },
+        { "title": "Ask AI About This Transcript", "value": "ask" }
       ]
     },
     {
@@ -42,6 +51,109 @@
         { "title": "100 entries", "value": "100" },
         { "title": "200 entries", "value": "200" },
         { "title": "500 entries", "value": "500" }
+      ]
+    },
+    {
+      "name": "aiResponseLanguage",
+      "title": "AI Response Language",
+      "description": "Language for AI summaries and answers. Uses the transcript's language by default.",
+      "type": "dropdown",
+      "required": false,
+      "default": "auto",
+      "data": [
+        { "title": "Same as Transcript", "value": "auto" },
+        { "title": "English", "value": "English" },
+        { "title": "Spanish", "value": "Spanish" },
+        { "title": "Portuguese", "value": "Portuguese" },
+        { "title": "French", "value": "French" },
+        { "title": "German", "value": "German" },
+        { "title": "Italian", "value": "Italian" },
+        { "title": "Japanese", "value": "Japanese" },
+        { "title": "Korean", "value": "Korean" },
+        { "title": "Chinese", "value": "Chinese" }
+      ]
+    },
+    {
+      "name": "aiModel",
+      "title": "AI Model",
+      "description": "Choose which AI model to use for summaries and questions.",
+      "type": "dropdown",
+      "required": false,
+      "default": "auto",
+      "data": [
+        { "title": "Auto (Default)", "value": "auto" },
+        { "title": "Claude 4.5 Sonnet", "value": "anthropic-claude-sonnet-4-5" },
+        { "title": "Claude 4.5 Haiku", "value": "anthropic-claude-4-5-haiku" },
+        { "title": "GPT-4o", "value": "openai-gpt-4o" },
+        { "title": "GPT-4o Mini", "value": "openai-gpt-4o-mini" },
+        { "title": "GPT-4.1", "value": "openai-gpt-4.1" },
+        { "title": "Gemini 2.5 Flash", "value": "google-gemini-2.5-flash" },
+        { "title": "Gemini 3 Flash", "value": "google-gemini-3-flash" },
+        { "title": "Llama 3.3 70B (Groq)", "value": "groq-llama-3.3-70b-versatile" },
+        { "title": "DeepSeek R1", "value": "together-deepseek-ai/DeepSeek-R1" },
+        { "title": "Grok 4", "value": "xai-grok-4" }
+      ]
+    },
+    {
+      "name": "customAction1Name",
+      "title": "Custom AI Action 1 — Name",
+      "description": "Display name for the first custom AI action (e.g., \"Extract Key Quotes\"). Leave empty to disable.",
+      "type": "textfield",
+      "required": false,
+      "default": ""
+    },
+    {
+      "name": "customAction1Prompt",
+      "title": "Custom AI Action 1 — Prompt",
+      "description": "Prompt template for the first custom AI action. Supports: {{title}}, {{url}}, {{channel}}, {{transcript}}, {{language}}, {{tags}}, {{duration}}, {{contentKind}}",
+      "type": "textfield",
+      "required": false,
+      "default": ""
+    },
+    {
+      "name": "customAction2Name",
+      "title": "Custom AI Action 2 — Name",
+      "description": "Display name for the second custom AI action (e.g., \"Extract Action Items\"). Leave empty to disable.",
+      "type": "textfield",
+      "required": false,
+      "default": ""
+    },
+    {
+      "name": "customAction2Prompt",
+      "title": "Custom AI Action 2 — Prompt",
+      "description": "Prompt template for the second custom AI action. Supports: {{title}}, {{url}}, {{channel}}, {{transcript}}, {{language}}, {{tags}}, {{duration}}, {{contentKind}}",
+      "type": "textfield",
+      "required": false,
+      "default": ""
+    },
+    {
+      "name": "historySortOrder",
+      "title": "History Sort Order",
+      "description": "Choose how transcript history is sorted.",
+      "type": "dropdown",
+      "required": false,
+      "default": "newest",
+      "data": [
+        { "title": "Newest First", "value": "newest" },
+        { "title": "Oldest First", "value": "oldest" },
+        { "title": "Title (A-Z)", "value": "title-asc" },
+        { "title": "Title (Z-A)", "value": "title-desc" },
+        { "title": "Channel", "value": "channel" }
+      ]
+    },
+    {
+      "name": "aiChatMaxAgeDays",
+      "title": "AI Chat Max Age",
+      "description": "Automatically remove cached AI summaries and answers older than this.",
+      "type": "dropdown",
+      "required": false,
+      "default": "0",
+      "data": [
+        { "title": "7 days", "value": "7" },
+        { "title": "30 days", "value": "30" },
+        { "title": "90 days", "value": "90" },
+        { "title": "365 days", "value": "365" },
+        { "title": "Unlimited", "value": "0" }
       ]
     },
     {
@@ -85,10 +197,33 @@
       "mode": "view"
     },
     {
+      "name": "search-ai-chats",
+      "title": "Search AI Chats",
+      "subtitle": "YouTube Transcribe",
+      "description": "Search across all AI summaries and answers from transcript history",
+      "mode": "view"
+    },
+    {
       "name": "fetch-youtube-transcript-worker",
       "title": "Fetch YouTube Transcript Worker",
       "subtitle": "YouTube Transcribe",
       "description": "Internal background worker for transcript fetching",
+      "mode": "no-view",
+      "interval": "1h"
+    },
+    {
+      "name": "ai-summarize-worker",
+      "title": "AI Summarize Worker",
+      "subtitle": "YouTube Transcribe",
+      "description": "Internal background worker for AI summarization",
+      "mode": "no-view",
+      "interval": "1h"
+    },
+    {
+      "name": "fetch-playlist-worker",
+      "title": "Fetch Playlist Worker",
+      "subtitle": "YouTube Transcribe",
+      "description": "Internal background worker for playlist transcript fetching",
       "mode": "no-view",
       "interval": "1h"
     }

@@ -17,7 +17,7 @@ import {
   normalizeVideoMetadata,
   YtDlpVideoMetadataPayload,
 } from "./ytdlp-metadata";
-import { runYtDlpCommand, runYtDlpJsonCommand } from "./ytdlp-command";
+import { runYtDlpCommand, runYtDlpJsonCommand, runYtDlpPlaylistCommand } from "./ytdlp-command";
 
 const YT_DLP_CANDIDATES = [
   "/opt/homebrew/bin/yt-dlp",
@@ -266,4 +266,53 @@ export async function fetchTranscriptWithYtDlp(
   } finally {
     rmSync(tempDir, { recursive: true, force: true });
   }
+}
+
+export type PlaylistInfo = {
+  playlistId: string;
+  playlistTitle: string;
+  entries: { videoId: string; title: string }[];
+};
+
+type YtDlpPlaylistPayload = {
+  id?: string;
+  title?: string;
+  entries?: { id?: string; title?: string }[];
+};
+
+export async function fetchPlaylistInfo(options: {
+  playlistUrl: string;
+  ytDlpPath: string;
+  browserApp?: string;
+}): Promise<PlaylistInfo> {
+  const args = [
+    options.ytDlpPath,
+    "--flat-playlist",
+    "--dump-single-json",
+    "--no-warnings",
+  ];
+
+  if (options.browserApp) {
+    const cookieBrowser =
+      BROWSER_COOKIE_MAP[options.browserApp.toLowerCase()] ??
+      options.browserApp.toLowerCase();
+    args.push("--cookies-from-browser", cookieBrowser);
+  }
+
+  args.push(options.playlistUrl);
+
+  const stdout = await runYtDlpPlaylistCommand(args);
+  const data = JSON.parse(stdout) as YtDlpPlaylistPayload;
+
+  if (!data.entries?.length) {
+    throw new Error("Playlist is empty or could not be resolved.");
+  }
+
+  return {
+    playlistId: data.id ?? "",
+    playlistTitle: data.title ?? "Untitled Playlist",
+    entries: data.entries
+      .filter((e): e is { id: string; title?: string } => Boolean(e.id))
+      .map((e) => ({ videoId: e.id, title: e.title ?? e.id })),
+  };
 }

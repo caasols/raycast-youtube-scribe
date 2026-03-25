@@ -33,6 +33,7 @@ import {
   normalizeInput,
   normalizeLanguage,
 } from "./lib/youtube";
+import { getAutoSummarize } from "./lib/preferences";
 import { HistoryEntry } from "./types";
 import { TranscriptDetailView } from "./commands/shared/transcript-detail-view";
 import {
@@ -40,6 +41,8 @@ import {
   prepareTranscriptJob,
   runPreparedTranscriptJob,
 } from "./commands/get-youtube-transcript/transcript-job";
+import { preparePlaylistJob } from "./commands/get-youtube-transcript/playlist-job";
+import { detectYoutubeInputKind } from "./lib/youtube";
 
 type Arguments = {
   language?: string;
@@ -111,6 +114,33 @@ function launchTranscriptWorker(task: PreparedTranscriptBackgroundTask): void {
   });
 }
 
+function launchPlaylistWorker(
+  task: import("./commands/get-youtube-transcript/playlist-job").PlaylistBackgroundTask,
+): void {
+  void launchCommand({
+    ownerOrAuthorName: "caasols",
+    extensionName: "youtube-transcribe",
+    name: "fetch-playlist-worker",
+    type: LaunchType.Background,
+    context: { task },
+  }).catch(() => {});
+}
+
+function launchAutoSummarize(entry: HistoryEntry): void {
+  if (!getAutoSummarize()) return;
+  if (entry.status !== "finished") return;
+  if (entry.aiSummaries?.length) return; // Already has a summary
+
+  void patchHistoryEntry(entry.id, { aiSummarizationStatus: "generating" });
+  void launchCommand({
+    ownerOrAuthorName: "caasols",
+    extensionName: "youtube-transcribe",
+    name: "ai-summarize-worker",
+    type: LaunchType.Background,
+    context: { task: { entryId: entry.id, title: entry.title } },
+  }).catch(() => {});
+}
+
 export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
   const [isLoading, setIsLoading] = useState(false);
   const [bootstrapped, setBootstrapped] = useState(false);
@@ -146,6 +176,28 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
     onSubmit: async (values) => {
       setIsLoading(true);
       try {
+        // Check if input is a playlist URL
+        if (detectYoutubeInputKind(values.videoInput.trim()) === "playlist") {
+          const result = await preparePlaylistJob(
+            values.videoInput.trim(),
+            values.language,
+            transcriptJobDeps,
+          );
+          launchPlaylistWorker(result.backgroundTask);
+          const queued = result.entries.length;
+          const skipped = result.skippedCount;
+          const msg = skipped > 0
+            ? `Queued ${queued} videos (${skipped} already cached)`
+            : `Queued ${queued} videos`;
+          await showToast({
+            style: Toast.Style.Success,
+            title: msg,
+            message: result.playlistInfo.playlistTitle,
+          });
+          await openHistory();
+          return;
+        }
+
         const { entry, fromCache, backgroundTask } = await prepareTranscriptJob(
           values.videoInput,
           values.language,
@@ -180,6 +232,7 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
           await Clipboard.copy(materializeOutput(finished, "text"));
         }
 
+        launchAutoSummarize(finished);
         setDetailEntry(finished);
         setUiMode("detail");
         await showToast({
@@ -241,6 +294,30 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
       setUiMode("fetching");
       setIsLoading(true);
       try {
+        // Check if auto-detected URL is a playlist
+        const autoInput = retryPayload?.url ?? defaults.videoInput;
+        const autoUrl = extractYoutubeUrlFromText(autoInput) ?? autoInput;
+        if (detectYoutubeInputKind(autoUrl) === "playlist") {
+          const result = await preparePlaylistJob(
+            autoUrl,
+            retryPayload?.language ?? defaults.language,
+            transcriptJobDeps,
+          );
+          launchPlaylistWorker(result.backgroundTask);
+          const queued = result.entries.length;
+          const skipped = result.skippedCount;
+          const msg = skipped > 0
+            ? `Queued ${queued} videos (${skipped} already cached)`
+            : `Queued ${queued} videos`;
+          await showToast({
+            style: Toast.Style.Success,
+            title: msg,
+            message: result.playlistInfo.playlistTitle,
+          });
+          await openHistory();
+          return;
+        }
+
         const { entry, fromCache, backgroundTask } = await prepareTranscriptJob(
           retryPayload?.url ?? defaults.videoInput,
           retryPayload?.language ?? defaults.language,
@@ -277,6 +354,7 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
           await Clipboard.copy(materializeOutput(finished, "text"));
         }
 
+        launchAutoSummarize(finished);
         setUiMode("opening");
         await yieldToRenderer();
         setDetailEntry(finished);

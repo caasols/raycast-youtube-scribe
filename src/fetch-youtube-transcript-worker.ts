@@ -11,6 +11,7 @@ import {
   runPreparedTranscriptJob,
 } from "./commands/get-youtube-transcript/transcript-job";
 import { fetchTranscriptWithYtDlp, findYtDlp } from "./lib/ytdlp";
+import { getAutoSummarize } from "./lib/preferences";
 
 type WorkerLaunchContext = {
   task?: PreparedTranscriptBackgroundTask;
@@ -47,6 +48,18 @@ export default async function Command(
     await patchHistoryEntry(task.entryId, {
       backgroundCompletedAt: new Date().toISOString(),
     });
+
+    // Auto-summarize if preference is enabled
+    if (getAutoSummarize() && !entry.aiSummaries?.length) {
+      await patchHistoryEntry(task.entryId, { aiSummarizationStatus: "generating" });
+      void launchCommand({
+        ownerOrAuthorName: "caasols",
+        extensionName: "youtube-transcribe",
+        name: "ai-summarize-worker",
+        type: LaunchType.Background,
+        context: { task: { entryId: task.entryId, title: entry.title } },
+      }).catch(() => {});
+    }
 
     await showToast({
       style: Toast.Style.Success,

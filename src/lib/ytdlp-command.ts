@@ -51,3 +51,14 @@ export async function runYtDlpJsonCommand(args: string[]): Promise<string> {
   });
   return typeof result === "string" ? result : (result.stdout ?? "");
 }
+
+export const YT_DLP_PLAYLIST_TIMEOUT_MS = 60_000;
+
+export async function runYtDlpPlaylistCommand(args: string[]): Promise<string> {
+  const result = await execFileAsync(args[0], args.slice(1), {
+    encoding: "utf-8",
+    timeout: YT_DLP_PLAYLIST_TIMEOUT_MS,
+    maxBuffer: 10 * 1024 * 1024, // 10MB for large playlists
+  });
+  return typeof result === "string" ? result : (result.stdout ?? "");
+}

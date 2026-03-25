@@ -78,10 +78,46 @@ export function buildSrtOutput(rawSegments: TranscriptSegment[]): string {
     .join("\n\n");
 }
 
+export function buildMarkdownOutput(entry: HistoryEntry): string {
+  const lines: string[] = [];
+  lines.push(`# ${entry.title || entry.videoId}`);
+  lines.push("");
+
+  const meta: string[] = [];
+  if (entry.videoMetadata?.channelName) meta.push(`**Channel:** ${entry.videoMetadata.channelName}`);
+  meta.push(`**URL:** ${entry.url}`);
+  if (entry.createdAt) meta.push(`**Saved:** ${new Date(entry.createdAt).toLocaleDateString()}`);
+  if (entry.videoMetadata?.durationText) meta.push(`**Duration:** ${entry.videoMetadata.durationText}`);
+  if (entry.language) meta.push(`**Language:** ${entry.language}`);
+  if (entry.videoMetadata?.tags?.length) meta.push(`**Tags:** ${entry.videoMetadata.tags.join(", ")}`);
+  lines.push(meta.join("  \n"));
+  lines.push("");
+  lines.push("---");
+  lines.push("");
+
+  if (entry.aiSummaries?.[0]) {
+    lines.push("## Summary");
+    lines.push("");
+    lines.push(entry.aiSummaries[0].content);
+    lines.push("");
+    lines.push("---");
+    lines.push("");
+  }
+
+  lines.push("## Transcript");
+  lines.push("");
+  if (entry.rawSegments?.length) {
+    lines.push(buildPlainReadableOutput(entry.rawSegments));
+  }
+
+  return lines.join("\n");
+}
+
 export function exportTranscript(
   entry: HistoryEntry,
   format: ExportFormat,
 ): string {
+  if (format === "markdown") return buildMarkdownOutput(entry);
   if (!entry.rawSegments?.length) return "";
 
   switch (format) {
@@ -101,6 +137,7 @@ const FORMAT_EXTENSIONS: Record<ExportFormat, string> = {
   readable: "-readable.txt",
   json: ".json",
   srt: ".srt",
+  markdown: ".md",
 };
 
 export function buildExportFilename(

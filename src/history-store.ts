@@ -5,7 +5,7 @@ import {
   serializeHistory,
 } from "./lib/history-persistence";
 import type { RetentionPolicy } from "./lib/history-persistence";
-import { getHistoryLimit, getHistoryMaxAgeDays } from "./lib/preferences";
+import { getAiChatMaxAgeDays, getHistoryLimit, getHistoryMaxAgeDays } from "./lib/preferences";
 
 const HISTORY_KEY = "youtube-transcript-history";
 
@@ -13,6 +13,7 @@ function getRetentionPolicy(): RetentionPolicy {
   return {
     maxEntries: getHistoryLimit(),
     maxAgeDays: getHistoryMaxAgeDays(),
+    aiChatMaxAgeDays: getAiChatMaxAgeDays(),
   };
 }
 

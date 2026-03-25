@@ -1,5 +1,5 @@
 export type OutputFormat = "text" | "json";
-export type ExportFormat = "plain" | "readable" | "json" | "srt";
+export type ExportFormat = "plain" | "readable" | "json" | "srt" | "markdown";
 
 export type TranscriptStatus = "fetching" | "finished" | "error";
 
@@ -66,6 +66,20 @@ export type TranscriptResult = {
   videoMetadata?: VideoMetadata;
 };
 
+export type CachedAiSummary = {
+  content: string;
+  createdAt: string;
+  pinned?: boolean;
+};
+
+export type CachedAiAnswer = {
+  question: string;
+  answer: string;
+  createdAt: string;
+  pinned?: boolean;
+  parentCreatedAt?: string;
+};
+
 export type HistoryEntry = {
   id: string;
   fetchKey: string;
@@ -87,4 +101,10 @@ export type HistoryEntry = {
   videoMetadata?: VideoMetadata;
   backgroundCompletedAt?: string;
   aiSummary?: string;
+  aiSummaries?: CachedAiSummary[];
+  aiAnswers?: CachedAiAnswer[];
+  aiSummarizationStatus?: "generating";
+  pinned?: boolean;
+  playlistId?: string;
+  playlistTitle?: string;
 };

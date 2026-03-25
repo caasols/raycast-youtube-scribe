@@ -53,6 +53,8 @@ describe("buildHistoryDetailMarkdown", () => {
       "Ready",
       "Rick Astley",
       "00:01",
+      "2 words",
+      "~1 min read",
       "auto",
       expect.stringMatching(/^Saved on /),
     ]);
@@ -68,7 +70,7 @@ describe("buildHistoryDetailMarkdown", () => {
     ]);
     expect(viewModel.body).toEqual({
       kind: "transcript",
-      markdown: "**00:00**\nhello world",
+      markdown: "[**00:00**](https://www.youtube.com/watch?v=abc&t=0)\nhello world",
     });
   });
 

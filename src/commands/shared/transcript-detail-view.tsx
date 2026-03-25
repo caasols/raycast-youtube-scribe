@@ -16,11 +16,14 @@ import {
   saveToDownloads,
   sanitizeFilename,
 } from "../../lib/export";
+import { buildRichTextHtml, materializeOutput } from "../../lib/output";
 import { isRetryable } from "../../lib/error-classification";
 import type { HistoryEntry, ExportFormat } from "../../types";
 import { TranscriptSummaryView } from "../transcript-history/transcript-summary-view";
 import { TranscriptAskView } from "../transcript-history/transcript-ask-view";
-import { getDefaultAIAction } from "../../lib/preferences";
+import { getCustomActions, getDefaultAIAction } from "../../lib/preferences";
+import { AiChatsView, hasAiChats } from "../transcript-history/ai-chats-view";
+import { TranscriptCustomActionView } from "../transcript-history/transcript-custom-action-view";
 
 export function TranscriptDetailView({
   entry,
@@ -32,11 +35,12 @@ export function TranscriptDetailView({
   onOpenHistory?: () => Promise<void>;
 }) {
   const defaultAI = getDefaultAIAction();
+  const customActions = getCustomActions();
 
   const askAction = (
     <Action.Push
       key="ask"
-      title="Ask AI About Transcript"
+      title="Ask AI About This Transcript"
       icon={Icon.Stars}
       target={<TranscriptAskView entry={entry} />}
       shortcut={{ modifiers: ["cmd", "shift"], key: "a" }}
@@ -45,8 +49,8 @@ export function TranscriptDetailView({
   const summarizeAction = (
     <Action.Push
       key="summarize"
-      title="Summarize Transcript"
-      icon={Icon.BulletPoints}
+      title="Summarize Transcript with AI"
+      icon={Icon.Stars}
       target={<TranscriptSummaryView entry={entry} />}
       shortcut={{ modifiers: ["cmd", "shift"], key: "s" }}
     />
@@ -63,11 +67,35 @@ export function TranscriptDetailView({
             <>
               {defaultAI === "summarize" ? summarizeAction : askAction}
               {defaultAI === "summarize" ? askAction : summarizeAction}
+              {customActions.map((ca, idx) => (
+                <Action.Push
+                  key={`custom-${idx}`}
+                  title={ca.name}
+                  icon={Icon.Stars}
+                  target={
+                    <TranscriptCustomActionView
+                      entry={entry}
+                      actionName={ca.name}
+                      promptTemplate={ca.prompt}
+                    />
+                  }
+                />
+              ))}
+              {hasAiChats(entry) && (
+                <Action.Push
+                  key="ai-chats"
+                  title="View AI Chats"
+                  icon={Icon.Stars}
+                  target={<AiChatsView entry={entry} />}
+                  shortcut={{ modifiers: ["cmd", "shift"], key: "c" }}
+                />
+              )}
               <ActionPanel.Submenu title="Export" icon={Icon.Download}>
                 {(
                   [
                     ["plain", "Export as Plain Text"],
                     ["readable", "Export as Readable Text"],
+                    ["markdown", "Export as Markdown"],
                     ["json", "Export as JSON"],
                     ["srt", "Export as SRT"],
                   ] as [ExportFormat, string][]
@@ -98,14 +126,14 @@ export function TranscriptDetailView({
                     }}
                   />
                 ))}
-                {entry.aiSummary && (
+                {entry.aiSummaries?.[0] && (
                   <Action
                     title="Export AI Summary"
                     icon={Icon.SaveDocument}
                     onAction={async () => {
                       const filename = `${sanitizeFilename(entry.title)}-summary.md`;
                       try {
-                        await saveToDownloads(filename, entry.aiSummary!);
+                        await saveToDownloads(filename, entry.aiSummaries![0].content);
                         await showToast({
                           style: Toast.Style.Success,
                           title: "Exported",
@@ -123,6 +151,15 @@ export function TranscriptDetailView({
                   />
                 )}
               </ActionPanel.Submenu>
+              <Action.CopyToClipboard
+                title="Copy as Rich Text"
+                icon={Icon.Clipboard}
+                content={{
+                  html: buildRichTextHtml(entry),
+                  text: materializeOutput(entry, "text"),
+                }}
+                shortcut={{ modifiers: ["cmd", "shift"], key: "." }}
+              />
               <Action.Push
                 title="Search in Transcript"
                 icon={Icon.MagnifyingGlass}

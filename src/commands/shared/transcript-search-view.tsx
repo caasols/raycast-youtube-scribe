@@ -55,7 +55,7 @@ export function TranscriptSearchView({ entry }: { entry: HistoryEntry }) {
             <ActionPanel>
               <Action.CopyToClipboard
                 title="Copy Segment"
-                content={chunk.text}
+                content={`[${formatTranscriptTimestamp(chunk.start_ms)}] ${chunk.text}`}
               />
               <Action.CopyToClipboard
                 title="Copy Transcript"

@@ -14,6 +14,10 @@ type ExtensionPreferences = {
   "summarizePromptTemplate": string,
   /** History Limit - Maximum number of transcript entries to keep in history. */
   "historyLimit": "50" | "100" | "200" | "500",
+  /** AI Response Language - Language for AI summaries and answers. Uses the transcript's language by default. */
+  "aiResponseLanguage": "auto" | "English" | "Spanish" | "Portuguese" | "French" | "German" | "Italian" | "Japanese" | "Korean" | "Chinese",
+  /** AI Chat Max Age - Automatically remove cached AI summaries and answers older than this. */
+  "aiChatMaxAgeDays": "7" | "30" | "90" | "365" | "0",
   /** History Max Age - Automatically remove entries older than this. Set to 'Unlimited' to keep all entries. */
   "historyMaxAgeDays": "7" | "30" | "90" | "365" | "0"
 }
@@ -26,8 +30,12 @@ declare namespace Preferences {
   export type GetYoutubeTranscript = ExtensionPreferences & {}
   /** Preferences accessible in the `transcript-history` command */
   export type TranscriptHistory = ExtensionPreferences & {}
+  /** Preferences accessible in the `search-ai-chats` command */
+  export type SearchAiChats = ExtensionPreferences & {}
   /** Preferences accessible in the `fetch-youtube-transcript-worker` command */
   export type FetchYoutubeTranscriptWorker = ExtensionPreferences & {}
+  /** Preferences accessible in the `ai-summarize-worker` command */
+  export type AiSummarizeWorker = ExtensionPreferences & {}
 }
 
 declare namespace Arguments {
@@ -38,7 +46,11 @@ declare namespace Arguments {
 }
   /** Arguments passed to the `transcript-history` command */
   export type TranscriptHistory = {}
+  /** Arguments passed to the `search-ai-chats` command */
+  export type SearchAiChats = {}
   /** Arguments passed to the `fetch-youtube-transcript-worker` command */
   export type FetchYoutubeTranscriptWorker = {}
+  /** Arguments passed to the `ai-summarize-worker` command */
+  export type AiSummarizeWorker = {}
 }
 

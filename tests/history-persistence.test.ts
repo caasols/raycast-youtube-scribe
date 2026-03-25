@@ -34,7 +34,7 @@ describe("history persistence", () => {
         statusMessage: undefined,
       }),
     ]);
-    expect(result.serialized).toContain('"version":4');
+    expect(result.serialized).toContain('"version":5');
     expect(result.serialized).not.toContain('"format":');
     expect(result.serialized).not.toContain('"output":');
   });
@@ -45,7 +45,7 @@ describe("history persistence", () => {
 
     const result = deserializeHistory(
       JSON.stringify({
-        version: 4,
+        version: 5,
         entries: [
           {
             id: "1",
@@ -99,7 +99,7 @@ describe("history persistence", () => {
 
     expect(result.didMigrate).toBe(true);
     expect(result.entries[0]?.errorKind).toBe("timeout");
-    expect(result.serialized).toContain('"version":4');
+    expect(result.serialized).toContain('"version":5');
   });
 
   it("retains at most 100 entries, sorted by recency regardless of status", async () => {

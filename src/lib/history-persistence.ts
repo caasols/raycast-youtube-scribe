@@ -3,12 +3,13 @@ import { classifyTranscriptError } from "./error-classification";
 import { makeFetchKey } from "./youtube";
 import type { HistoryEntry } from "../types";
 
-export const HISTORY_SCHEMA_VERSION = 4;
+export const HISTORY_SCHEMA_VERSION = 5;
 export const DEFAULT_HISTORY_ENTRY_LIMIT = 100;
 
 export type RetentionPolicy = {
   maxEntries: number;
   maxAgeDays: number | null;
+  aiChatMaxAgeDays?: number | null;
 };
 
 type HistoryStoreEnvelope = {
@@ -40,7 +41,10 @@ function pruneHistory(
   return result.slice(0, policy.maxEntries);
 }
 
-function normalizeEntry(entry: HistoryEntry): HistoryEntry {
+function normalizeEntry(
+  entry: HistoryEntry,
+  aiChatMaxAgeDays?: number | null,
+): HistoryEntry {
   // Legacy entries (pre-v3) may carry `format` and `output` fields that no
   // longer exist in the HistoryEntry type. Strip them via destructuring.
   const { format: _, output: legacyOutput, ...rest } = entry as HistoryEntry & {
@@ -67,6 +71,27 @@ function normalizeEntry(entry: HistoryEntry): HistoryEntry {
     normalized.statusMessage = legacyOutput;
   }
 
+  // Drop legacy aiSummary field — it was shared by both "Summarize" and
+  // "Ask AI", so we can't tell which produced it. Start fresh with the
+  // new separated aiSummaries / aiAnswers fields.
+  delete normalized.aiSummary;
+
+  // Prune expired AI chats based on caller-provided retention setting.
+  const aiMaxAge = aiChatMaxAgeDays ?? null;
+  if (aiMaxAge !== null) {
+    const cutoff = Date.now() - aiMaxAge * 24 * 60 * 60 * 1000;
+    if (normalized.aiSummaries?.length) {
+      normalized.aiSummaries = normalized.aiSummaries.filter(
+        (s) => new Date(s.createdAt).getTime() >= cutoff,
+      );
+    }
+    if (normalized.aiAnswers?.length) {
+      normalized.aiAnswers = normalized.aiAnswers.filter(
+        (a) => new Date(a.createdAt).getTime() >= cutoff,
+      );
+    }
+  }
+
   if (normalized.status === "error" && !normalized.errorKind) {
     normalized.errorKind = classifyTranscriptError(
       normalized.errorLog ?? normalized.debugLog ?? "",
@@ -82,7 +107,10 @@ export function serializeHistory(
 ): string {
   const payload: HistoryStoreEnvelope = {
     version: HISTORY_SCHEMA_VERSION,
-    entries: pruneHistory(entries.map(normalizeEntry), policy),
+    entries: pruneHistory(
+      entries.map((e) => normalizeEntry(e, policy?.aiChatMaxAgeDays)),
+      policy,
+    ),
   };
 
   return JSON.stringify(payload);
@@ -113,7 +141,7 @@ export function deserializeHistory(
         : [];
 
     const normalized = repairStaleFetchingEntries(
-      rawEntries.map((entry) => normalizeEntry(entry)),
+      rawEntries.map((entry) => normalizeEntry(entry, policy?.aiChatMaxAgeDays)),
     );
     const pruned = pruneHistory(normalized, policy);
     const serialized = serializeHistory(pruned, policy);

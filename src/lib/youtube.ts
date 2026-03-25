@@ -85,6 +85,37 @@ export function normalizeYoutubeVideoUrl(input?: string): string | null {
   return null;
 }
 
+export type YoutubeInputKind = "video" | "short" | "playlist";
+
+export function extractPlaylistId(input?: string): string | null {
+  const value = normalizeInput(input);
+  if (!value) return null;
+
+  try {
+    const url = new URL(value);
+    const hostname = url.hostname.toLowerCase();
+    if (hostname !== "youtube.com" && hostname !== "www.youtube.com") return null;
+
+    const listParam = url.searchParams.get("list");
+    if (listParam && listParam.length > 0) return listParam;
+  } catch {
+    return null;
+  }
+
+  return null;
+}
+
+export function detectYoutubeInputKind(input?: string): YoutubeInputKind | null {
+  if (extractPlaylistId(input)) return "playlist";
+  return detectYoutubeContentKind(input);
+}
+
+export function normalizeYoutubePlaylistUrl(input?: string): string | null {
+  const playlistId = extractPlaylistId(input);
+  if (!playlistId) return null;
+  return `https://www.youtube.com/playlist?list=${playlistId}`;
+}
+
 export function extractYoutubeUrlFromText(text?: string): string | null {
   const value = normalizeInput(text);
   if (!value) return null;
@@ -94,6 +125,10 @@ export function extractYoutubeUrlFromText(text?: string): string | null {
   );
 
   for (const match of matches ?? []) {
+    // Check for playlist URLs first
+    const playlistUrl = normalizeYoutubePlaylistUrl(match);
+    if (playlistUrl) return playlistUrl;
+
     const normalized = normalizeYoutubeVideoUrl(match);
     if (normalized) return normalized;
   }

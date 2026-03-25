@@ -336,6 +336,13 @@ export async function prepareTranscriptJob(
   };
 }
 
+const RETRYABLE_ERROR_KINDS: Set<TranscriptErrorKind> = new Set([
+  "timeout",
+  "rate-limited",
+]);
+const MAX_RETRIES = 3;
+const RETRY_DELAYS_MS = [2000, 4000, 8000];
+
 export async function runPreparedTranscriptJob(
   task: PreparedTranscriptBackgroundTask,
   deps: Pick<
@@ -351,12 +358,33 @@ export async function runPreparedTranscriptJob(
       throw new Error(buildMissingYtDlpMessage());
     }
 
-    const result = await deps.fetchTranscriptWithYtDlp({
-      videoUrl: task.resolvedUrl,
-      requestedLanguage: task.requestedLanguage,
-      browserApp: cookieBrowserApp,
-      ytDlpPath: ytDlpLocation.path,
-    });
+    let lastError: unknown;
+    let result: TranscriptResult | undefined;
+
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        result = await deps.fetchTranscriptWithYtDlp({
+          videoUrl: task.resolvedUrl,
+          requestedLanguage: task.requestedLanguage,
+          browserApp: cookieBrowserApp,
+          ytDlpPath: ytDlpLocation.path,
+        });
+        break;
+      } catch (err) {
+        lastError = err;
+        const { kind } = toTranscriptError(err);
+        if (!RETRYABLE_ERROR_KINDS.has(kind) || attempt >= MAX_RETRIES) {
+          throw err;
+        }
+        const delayMs = RETRY_DELAYS_MS[attempt] ?? 8000;
+        await deps.patchHistoryEntry(task.entryId, {
+          statusMessage: `Retrying (attempt ${attempt + 2}/${MAX_RETRIES + 1})...`,
+        });
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+      }
+    }
+
+    if (!result) throw lastError;
 
     const finished: HistoryEntry = {
       id: task.entryId,
