@@ -38,6 +38,7 @@ npm install && npm run dev
 - **Playlist support** — paste a playlist URL to queue all videos for batch transcription in the background
 - **Language selection** — fetch captions in any available language
 - **Background fetching** — exit Raycast while a transcript is being fetched; it continues in the background and notifies you when ready
+- **One fetch at a time** — to avoid YouTube rate limits, the extension processes one transcript at a time. A clear message is shown if you try to start a second fetch while one is in progress
 - **Retry with backoff** — transient failures (timeouts, rate limits) are retried automatically with exponential delays
 
 ### AI
@@ -111,13 +112,20 @@ Open **Raycast Preferences > Extensions > YouTube Transcribe** to customize:
 
 ## Troubleshooting
 
-1. Verify yt-dlp is installed:
+1. **yt-dlp not found** — verify it's installed:
    ```bash
    which yt-dlp
    ```
-2. Ensure the video has captions available in the requested language.
-3. For age-restricted content, make sure a supported browser is open so yt-dlp can use its cookies.
-4. Check Raycast logs for detailed error messages.
+   Install via `brew install yt-dlp` or `pip3 install yt-dlp`.
+2. **SSL certificate errors after installing Python** — if you installed Python from python.org, run the certificate installer:
+   ```bash
+   open "/Applications/Python 3.14/Install Certificates.command"
+   ```
+   (Replace `3.14` with your Python version.)
+3. **No captions found** — ensure the video has captions available in the requested language.
+4. **Age-restricted content** — make sure a supported browser is open so yt-dlp can use its cookies.
+5. **Rate limiting (429 errors)** — the extension retries automatically with backoff. If fetches keep failing, wait a moment before trying again. Avoid fetching multiple videos in rapid succession.
+6. **Python deprecation warnings** — if you see warnings about Python 3.9, upgrade Python from [python.org](https://www.python.org/downloads/).
 
 For persistent issues, [open an issue](https://github.com/caasols/raycast-youtube-scribe/issues) with reproduction steps.
 
