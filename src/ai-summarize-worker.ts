@@ -20,7 +20,7 @@ type WorkerLaunchContext = {
   task?: AiSummarizeTask;
 };
 
-const WORKER_GRACE_PERIOD_MS = 15_000;
+const WORKER_GRACE_PERIOD_MS = 5_000;
 
 export default async function Command(
   props: LaunchProps<{ launchContext: WorkerLaunchContext }>,
