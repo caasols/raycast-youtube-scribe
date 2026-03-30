@@ -4,12 +4,12 @@ import {
   LaunchType,
   Toast,
   launchCommand,
-  showToast,
 } from "@raycast/api";
 import { loadFreshEntry, saveSummary } from "./lib/ai-cache";
 import { patchHistoryEntry } from "./history-store";
 import { buildTranscriptSummaryPrompt } from "./commands/transcript-history/transcript-ai";
 import { getAiModel, getSummarizePromptTemplate } from "./lib/preferences";
+import { safeShowToast } from "./lib/safe-toast";
 
 type AiSummarizeTask = {
   entryId: string;
@@ -52,7 +52,7 @@ export default async function Command(
       aiSummarizationStatus: undefined,
     });
 
-    await showToast({
+    await safeShowToast({
       style: Toast.Style.Success,
       title: "Summary ready",
       message: task.title,
@@ -81,7 +81,7 @@ export default async function Command(
     await patchHistoryEntry(task.entryId, {
       aiSummarizationStatus: undefined,
     });
-    await showToast({
+    await safeShowToast({
       style: Toast.Style.Failure,
       title: "Summary failed",
       message: error instanceof Error ? error.message : "Unknown error.",

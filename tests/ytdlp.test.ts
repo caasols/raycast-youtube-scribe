@@ -86,8 +86,8 @@ describe("yt-dlp provider", () => {
     });
 
     expect(execFileMock).toHaveBeenCalled();
-    expect(execFileMock.mock.calls[0][1]).toContain("--cookies-from-browser");
-    expect(execFileMock.mock.calls[0][1]).toContain("chrome");
+    // First attempt is without cookies (faster path); cookies used as fallback
+    expect(execFileMock.mock.calls[0][1]).not.toContain("--cookies-from-browser");
     expect(result.videoMetadata).toEqual({
       channelName: "Rick Astley",
       creatorHandle: "@RickAstleyYT",
@@ -104,19 +104,13 @@ describe("yt-dlp provider", () => {
     });
   });
 
-  it("fails fast when a yt-dlp attempt times out", async () => {
+  it("recovers partial subtitles when a yt-dlp attempt times out", async () => {
     mkdtempSyncMock.mockReturnValue("/tmp/ytscribe-123");
     readdirSyncMock.mockReturnValueOnce(["transcript.en.vtt"]);
     readFileSyncMock.mockReturnValue("WEBVTT\n\n00:00:00.000 --> 00:00:01.000\nhello\n");
     execFileMock
       .mockImplementationOnce((_bin, _args, _opts, callback) =>
         callback({ killed: true, signal: "SIGTERM", stdout: "", stderr: "" }),
-      )
-      .mockImplementationOnce((_bin, _args, _opts, callback) =>
-        callback({ killed: true, signal: "SIGTERM", stdout: "", stderr: "" }),
-      )
-      .mockImplementationOnce((_bin, _args, _opts, callback) =>
-        callback(null, "", ""),
       )
       .mockImplementationOnce((_bin, _args, _opts, callback) =>
         callback(new Error("metadata failed"), "", ""),
@@ -129,8 +123,9 @@ describe("yt-dlp provider", () => {
       ytDlpPath: "/custom/bin/yt-dlp",
     });
 
+    // Should recover transcript from partial download (1 yt-dlp call + 1 metadata call)
     expect(result.textOutput).toContain("hello");
-    expect(execFileMock).toHaveBeenCalledTimes(4);
+    expect(execFileMock).toHaveBeenCalledTimes(2);
     expect(result.videoMetadata).toBeUndefined();
   });
 

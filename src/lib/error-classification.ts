@@ -5,10 +5,9 @@ export function classifyTranscriptError(raw: string): TranscriptErrorKind {
 
   if (lower.includes("yt-dlp is not installed")) return "ytdlp-missing";
   if (lower.includes("no captions found")) return "no-captions";
-  if (lower.includes("sign in") || lower.includes("cookies"))
-    return "auth-required";
-  if (lower.includes("private") || lower.includes("video unavailable"))
-    return "private-or-deleted";
+  // Rate-limit must be checked before auth — the raw error often contains
+  // "--cookies-from-browser" in the command string, which would falsely
+  // match the "cookies" check for auth-required.
   if (
     lower.includes("rate limit") ||
     lower.includes("too many requests") ||
@@ -16,6 +15,10 @@ export function classifyTranscriptError(raw: string): TranscriptErrorKind {
   )
     return "rate-limited";
   if (lower.includes("timed out")) return "timeout";
+  if (lower.includes("sign in") || lower.includes("cookies"))
+    return "auth-required";
+  if (lower.includes("private") || lower.includes("video unavailable"))
+    return "private-or-deleted";
 
   return "unknown";
 }

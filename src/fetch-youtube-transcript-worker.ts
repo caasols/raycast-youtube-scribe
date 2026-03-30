@@ -3,14 +3,15 @@ import {
   LaunchType,
   Toast,
   launchCommand,
-  showToast,
 } from "@raycast/api";
+// Toast imported for Toast.Style enum used by safeShowToast options
 import { loadHistory, patchHistoryEntry } from "./history-store";
 import {
   PreparedTranscriptBackgroundTask,
   runPreparedTranscriptJob,
 } from "./commands/get-youtube-transcript/transcript-job";
 import { fetchTranscriptWithYtDlp, findYtDlp } from "./lib/ytdlp";
+import { safeShowToast } from "./lib/safe-toast";
 import { getAutoSummarize } from "./lib/preferences";
 
 type WorkerLaunchContext = {
@@ -61,7 +62,7 @@ export default async function Command(
       }).catch(() => {});
     }
 
-    await showToast({
+    await safeShowToast({
       style: Toast.Style.Success,
       title: "Transcript ready",
       message: entry.title,
@@ -77,7 +78,7 @@ export default async function Command(
       },
     });
   } catch (error) {
-    await showToast({
+    await safeShowToast({
       style: Toast.Style.Failure,
       title: "Failed to fetch transcript",
       message: error instanceof Error ? error.message : "Unknown error.",

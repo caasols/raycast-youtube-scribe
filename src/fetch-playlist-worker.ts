@@ -3,12 +3,12 @@ import {
   LaunchType,
   Toast,
   launchCommand,
-  showToast,
 } from "@raycast/api";
 import { loadHistory, patchHistoryEntry } from "./history-store";
 import { runPreparedTranscriptJob } from "./commands/get-youtube-transcript/transcript-job";
 import { fetchTranscriptWithYtDlp, findYtDlp } from "./lib/ytdlp";
 import { getAutoSummarize } from "./lib/preferences";
+import { safeShowToast } from "./lib/safe-toast";
 import type { PlaylistBackgroundTask } from "./commands/get-youtube-transcript/playlist-job";
 
 type WorkerLaunchContext = {
@@ -77,7 +77,7 @@ export default async function Command(
       ? `${completedCount} completed, ${errorCount} failed`
       : `${completedCount} videos processed`;
 
-  await showToast({
+  await safeShowToast({
     style: errorCount > 0 ? Toast.Style.Failure : Toast.Style.Success,
     title: "Playlist complete",
     message: `${task.playlistTitle} — ${message}`,

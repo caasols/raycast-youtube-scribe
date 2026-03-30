@@ -65,8 +65,7 @@ export function TranscriptDetailView({
         <ActionPanel>
           {entry.status === "finished" && (
             <>
-              {defaultAI === "summarize" ? summarizeAction : askAction}
-              {defaultAI === "summarize" ? askAction : summarizeAction}
+              {summarizeAction}
               {customActions.map((ca, idx) => (
                 <Action.Push
                   key={`custom-${idx}`}
@@ -81,6 +80,7 @@ export function TranscriptDetailView({
                   }
                 />
               ))}
+              {askAction}
               {hasAiChats(entry) && (
                 <Action.Push
                   key="ai-chats"
@@ -160,11 +160,6 @@ export function TranscriptDetailView({
                 }}
                 shortcut={{ modifiers: ["cmd", "shift"], key: "." }}
               />
-              <Action.Push
-                title="Search in Transcript"
-                icon={Icon.MagnifyingGlass}
-                target={<TranscriptSearchView entry={entry} />}
-              />
             </>
           )}
           {entry.status === "error" && (
@@ -191,7 +186,6 @@ export function TranscriptDetailView({
               )}
             </>
           )}
-          <Action.OpenInBrowser title="Open Video" url={entry.url} />
           {onOpenHistory && (
             <Action
               title="View Transcript History"
@@ -199,6 +193,12 @@ export function TranscriptDetailView({
               onAction={onOpenHistory}
             />
           )}
+          <Action.Push
+            title="Search in Transcript"
+            icon={Icon.MagnifyingGlass}
+            target={<TranscriptSearchView entry={entry} />}
+          />
+          <Action.OpenInBrowser title="Open Video" url={entry.url} />
           {entry.status === "error" && (
             <>
               <Action.CopyToClipboard

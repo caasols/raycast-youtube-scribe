@@ -223,8 +223,7 @@ export default function Command(
     <ActionPanel>
       {entry.status === "finished" ? (
         <>
-          {defaultAI === "summarize" ? summarizeAction : askAction}
-          {defaultAI === "summarize" ? askAction : summarizeAction}
+          {summarizeAction}
           {customActions.map((ca, idx) => (
             <Action.Push
               key={`custom-${idx}`}
@@ -239,6 +238,7 @@ export default function Command(
               }
             />
           ))}
+          {askAction}
           {hasAiChats(entry) && (
             <Action.Push
               key="ai-chats"
@@ -248,6 +248,22 @@ export default function Command(
               shortcut={{ modifiers: ["cmd", "shift"], key: "c" }}
             />
           )}
+          <Action.Push
+            title="View Transcript"
+            icon={Icon.Sidebar}
+            target={
+              <TranscriptDetailView
+                entry={entry}
+                onRetry={() => retryFetch(entry)}
+              />
+            }
+          />
+          <Action.Push
+            title="Search in Transcript"
+            icon={Icon.MagnifyingGlass}
+            target={<TranscriptSearchView entry={entry} />}
+            shortcut={{ modifiers: ["cmd"], key: "f" }}
+          />
           <Action.CopyToClipboard
             title="Copy Transcript"
             content={materializeOutput(entry, "text")}
@@ -260,22 +276,6 @@ export default function Command(
               text: materializeOutput(entry, "text"),
             }}
             shortcut={{ modifiers: ["cmd", "shift"], key: "." }}
-          />
-          <Action.Push
-            title="Search in Transcript"
-            icon={Icon.MagnifyingGlass}
-            target={<TranscriptSearchView entry={entry} />}
-            shortcut={{ modifiers: ["cmd"], key: "f" }}
-          />
-          <Action.Push
-            title="View Transcript"
-            icon={Icon.Sidebar}
-            target={
-              <TranscriptDetailView
-                entry={entry}
-                onRetry={() => retryFetch(entry)}
-              />
-            }
           />
           <Action.OpenInBrowser
             title="Open Video"
@@ -309,24 +309,14 @@ export default function Command(
             icon={Icon.ArrowClockwise}
             onAction={() => retryFetch(entry)}
           />
-          <Action.Push
-            title="View Transcript"
-            icon={Icon.Sidebar}
-            target={
-              <TranscriptDetailView
-                entry={entry}
-                onRetry={() => retryFetch(entry)}
-              />
-            }
+          <Action.CopyToClipboard
+            title="Copy Debug Log"
+            content={entry.debugLog ?? "No debug data"}
           />
           <Action.OpenInBrowser
             title="Open Video"
             url={entry.url}
             shortcut={{ modifiers: ["cmd"], key: "o" }}
-          />
-          <Action.CopyToClipboard
-            title="Copy Debug Log"
-            content={entry.debugLog ?? "No debug data"}
           />
           <Action
             title="Remove from History"

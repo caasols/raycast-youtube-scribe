@@ -23,10 +23,11 @@ const YT_DLP_CANDIDATES = [
   "/opt/homebrew/bin/yt-dlp",
   "/usr/local/bin/yt-dlp",
   "/usr/bin/yt-dlp",
-  path.join(process.env.HOME ?? "", "Library/Python/3.9/bin/yt-dlp"),
-  path.join(process.env.HOME ?? "", "Library/Python/3.10/bin/yt-dlp"),
-  path.join(process.env.HOME ?? "", "Library/Python/3.11/bin/yt-dlp"),
-  path.join(process.env.HOME ?? "", "Library/Python/3.12/bin/yt-dlp"),
+  "/Library/Frameworks/Python.framework/Versions/Current/bin/yt-dlp",
+  ...["3.14", "3.13", "3.12", "3.11", "3.10", "3.9"].flatMap((v) => [
+    `/Library/Frameworks/Python.framework/Versions/${v}/bin/yt-dlp`,
+    path.join(process.env.HOME ?? "", `Library/Python/${v}/bin/yt-dlp`),
+  ]),
 ];
 
 const PLAYER_CLIENTS = ["default", "ios", "mweb", "web"] as const;
@@ -113,8 +114,17 @@ export async function fetchTranscriptWithYtDlp(
       ? `${requestedLanguage}.*,${requestedLanguage}`
       : "en.*,en";
 
-    for (const playerClient of PLAYER_CLIENTS) {
-      diagnostics.attemptedClients?.push(playerClient);
+    // Strategy: try without cookies first (faster, avoids JS challenge issues),
+    // then with cookies for each player client (needed for auth-gated videos).
+    const attempts: { client: string; useCookies: boolean }[] = [
+      { client: "default", useCookies: false },
+      ...PLAYER_CLIENTS.map((c) => ({ client: c, useCookies: true })),
+    ];
+
+    for (const attempt of attempts) {
+      diagnostics.attemptedClients?.push(
+        `${attempt.client}${attempt.useCookies ? "+cookies" : ""}`,
+      );
       try {
         const args = [
           options.ytDlpPath,
@@ -129,12 +139,14 @@ export async function fetchTranscriptWithYtDlp(
           outputTemplate,
         ];
 
-        args.push("--cookies-from-browser", cookieBrowser);
+        if (attempt.useCookies) {
+          args.push("--cookies-from-browser", cookieBrowser);
+        }
 
-        if (playerClient !== "default") {
+        if (attempt.client !== "default") {
           args.push(
             "--extractor-args",
-            `youtube:player_client=${playerClient}`,
+            `youtube:player_client=${attempt.client}`,
           );
         }
 
@@ -194,7 +206,55 @@ export async function fetchTranscriptWithYtDlp(
           error instanceof Error ? error.message : "Unknown yt-dlp error";
 
         diagnostics.stderrSnippet = message;
-        if (message.toLowerCase().includes("timed out")) {
+
+        // yt-dlp may exit with an error even if some subtitle files were
+        // successfully downloaded (e.g., 429 on a secondary language track).
+        // Check for files on disk before giving up.
+        const partialFiles = readdirSync(tempDir)
+          .filter((file) => file.endsWith(".vtt"))
+          .sort();
+
+        if (partialFiles.length > 0) {
+          diagnostics.subtitleFiles = partialFiles;
+          const subtitlePath = path.join(tempDir, partialFiles[0]);
+          const rawSegments = parseVtt(readFileSync(subtitlePath, "utf-8"));
+          const textOutput = buildTextOutput(rawSegments);
+
+          if (textOutput) {
+            const effectiveLanguage = detectEffectiveLanguage(
+              partialFiles[0],
+              requestedLanguage,
+            );
+            diagnostics.effectiveLanguage = effectiveLanguage;
+            let videoMetadata: VideoMetadata | undefined;
+            try {
+              videoMetadata = await fetchVideoMetadataWithYtDlp(
+                options,
+                cookieBrowser,
+              );
+            } catch {
+              // Metadata is optional
+            }
+
+            return {
+              rawSegments,
+              textOutput,
+              jsonOutput: buildJsonOutput(rawSegments),
+              segmentCount: rawSegments.length,
+              requestedLanguage,
+              effectiveLanguage,
+              provider: "yt-dlp",
+              diagnostics,
+              videoMetadata,
+            };
+          }
+        }
+
+        if (
+          message.toLowerCase().includes("timed out") ||
+          message.toLowerCase().includes("challenge solving failed") ||
+          message.toLowerCase().includes("requested format is not available")
+        ) {
           continue;
         }
 
@@ -218,9 +278,14 @@ export async function fetchTranscriptWithYtDlp(
     fallbackArgs.push("--cookies-from-browser", cookieBrowser);
 
     fallbackArgs.push(options.videoUrl);
-    const commandResult = await runYtDlpCommand(fallbackArgs);
-    diagnostics.stdoutSnippet = commandResult.stdoutSnippet;
-    diagnostics.stderrSnippet = commandResult.stderrSnippet;
+    try {
+      const commandResult = await runYtDlpCommand(fallbackArgs);
+      diagnostics.stdoutSnippet = commandResult.stdoutSnippet;
+      diagnostics.stderrSnippet = commandResult.stderrSnippet;
+    } catch {
+      // Fallback with cookies may fail — check for partial files below,
+      // then fall through to no-cookies retry.
+    }
 
     const subtitleFiles = readdirSync(tempDir)
       .filter((file) => file.endsWith(".vtt"))
