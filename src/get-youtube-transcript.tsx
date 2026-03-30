@@ -176,6 +176,19 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
     onSubmit: async (values) => {
       setIsLoading(true);
       try {
+        // Warn if another fetch is already in progress
+        const currentHistory = await loadHistory();
+        const inProgress = currentHistory.find((e) => e.status === "fetching");
+        if (inProgress) {
+          await showToast({
+            style: Toast.Style.Failure,
+            title: "A transcript is already being fetched",
+            message: "Wait for the current fetch to finish before starting another.",
+          });
+          setIsLoading(false);
+          return;
+        }
+
         // Check if input is a playlist URL
         if (detectYoutubeInputKind(values.videoInput.trim()) === "playlist") {
           const result = await preparePlaylistJob(
@@ -294,6 +307,20 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
       setUiMode("fetching");
       setIsLoading(true);
       try {
+        // Warn if another fetch is already in progress
+        const currentHistory = await loadHistory();
+        const inProgress = currentHistory.find((e) => e.status === "fetching");
+        if (inProgress) {
+          await showToast({
+            style: Toast.Style.Failure,
+            title: "A transcript is already being fetched",
+            message: "Wait for the current fetch to finish before starting another.",
+          });
+          setUiMode("manual-form");
+          setIsLoading(false);
+          return;
+        }
+
         // Check if auto-detected URL is a playlist
         const autoInput = retryPayload?.url ?? defaults.videoInput;
         const autoUrl = extractYoutubeUrlFromText(autoInput) ?? autoInput;
