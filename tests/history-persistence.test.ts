@@ -106,12 +106,12 @@ describe("history persistence", () => {
     const { deserializeHistory } =
       await import("../src/lib/history-persistence");
 
-    // Fetching entries are NEWEST (April, future) — they must come first under pure recency
+    // Fetching entries are NEWEST (far future) — they must come first under pure recency
     // Dates are in the future so repairStaleFetchingEntries does not convert them to error
     const fetchingEntries = Array.from({ length: 20 }, (_, index) => ({
       id: `fetching-${index}`,
       fetchKey: `fetching-${index}::auto`,
-      createdAt: `2026-04-${String((index % 28) + 1).padStart(2, "0")}T10:00:00.000Z`,
+      createdAt: `2099-04-${String((index % 28) + 1).padStart(2, "0")}T10:00:00.000Z`,
       videoId: `fetching-${index}`,
       url: `https://www.youtube.com/watch?v=fetching-${index}`,
       title: `Fetching ${index}`,
