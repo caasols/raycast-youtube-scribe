@@ -164,18 +164,29 @@ function TranscriptAnswerView({
     () => findCachedAnswer(entry, question)?.answer,
   );
   const [freshEntry, setFreshEntry] = useState(entry);
+  // The prop is both stale and (since v6) missing its transcript body, so the
+  // generator must not run until the hydrated entry has loaded.
+  const [isHydrating, setIsHydrating] = useState(
+    !entry.rawSegments?.length && entry.status === "finished",
+  );
 
   // Load fresh entry from storage on mount to pick up cached data
   useEffect(() => {
-    loadFreshEntry(entry.id).then((loaded) => {
-      if (!loaded) return;
-      setFreshEntry(loaded);
-      const cached = findCachedAnswer(loaded, question);
-      if (cached && !displayContent) {
-        setDisplayContent(cached.answer);
-      }
-    });
+    loadFreshEntry(entry.id)
+      .then((loaded) => {
+        if (!loaded) return;
+        setFreshEntry(loaded);
+        const cached = findCachedAnswer(loaded, question);
+        if (cached && !displayContent) {
+          setDisplayContent(cached.answer);
+        }
+      })
+      .finally(() => setIsHydrating(false));
   }, [entry.id, question]);
+
+  if (isHydrating) {
+    return <Detail isLoading markdown="" navigationTitle="Answer" />;
+  }
 
   if (!displayContent || generating) {
     return (

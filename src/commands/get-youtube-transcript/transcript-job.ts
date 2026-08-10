@@ -12,6 +12,7 @@ import {
   classifyTranscriptError,
   formatTranscriptError,
 } from "../../lib/error-classification";
+import { computeTranscriptStats } from "../../lib/history-persistence";
 import type {
   HistoryEntry,
   TranscriptErrorKind,
@@ -395,6 +396,9 @@ export async function runPreparedTranscriptJob(
       contentKind: classifyContentKind(task.contentKind, result.videoMetadata),
       title: result.videoMetadata?.title ?? task.title,
       rawSegments: result.rawSegments,
+      // Stored so the history list can render duration, word count, and reading
+      // time without loading the transcript body back out of storage.
+      ...computeTranscriptStats(result.rawSegments),
       language: result.effectiveLanguage,
       segmentCount: result.segmentCount,
       status: "finished",

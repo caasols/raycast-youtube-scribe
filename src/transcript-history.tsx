@@ -17,16 +17,20 @@ import {
   clearBackgroundCompletedFlags,
   clearHistory,
   loadHistory,
+  loadSegments,
   patchHistoryEntry,
-  saveHistory,
+  removeHistoryEntry,
 } from "./history-store";
 import { matchesHistoryQuery } from "./lib/history-logic";
 import { buildHistoryDetailMarkdown } from "./lib/history-detail";
 import { buildHistoryStatusPresentation } from "./lib/history-status";
 import { buildHistoryRowPresentation } from "./lib/history-row";
-import { HistoryEntry } from "./types";
+import { HistoryEntry, TranscriptSegment } from "./types";
 import { TranscriptDetailView } from "./commands/shared/transcript-detail-view";
-import { buildRichTextHtml, materializeOutput } from "./lib/output";
+import {
+  CopyTranscriptAction,
+  CopyRichTextAction,
+} from "./commands/shared/copy-transcript-actions";
 import { retryFetch as retryFetchAction } from "./commands/transcript-history/history-actions";
 import { TranscriptSearchView } from "./commands/shared/transcript-search-view";
 import { TranscriptSummaryView } from "./commands/transcript-history/transcript-summary-view";
@@ -78,6 +82,15 @@ export default function Command(
   const [isLoading, setIsLoading] = useState(true);
   const [searchText, setSearchText] = useState("");
   const selectedItemId = props.launchContext?.entryId;
+  const [selectedId, setSelectedId] = useState<string | undefined>(
+    props.launchContext?.entryId,
+  );
+  // Transcript body for the one row whose detail pane is actually on screen.
+  // Building it for every row is what previously exhausted the 100 MB heap.
+  const [paneSegments, setPaneSegments] = useState<{
+    id: string;
+    segments?: TranscriptSegment[];
+  }>({ id: "" });
   const [autoNav, setAutoNav] = useState<{
     entry: HistoryEntry;
     target: NavigateTarget;
@@ -98,13 +111,15 @@ export default function Command(
     bootstrap();
   }, []);
 
+  // Poll only while a fetch is in flight. The previous version re-read the whole
+  // store every 3s even when nothing could change, and because the effect
+  // depended on `history` the timer was torn down and rebuilt on every refresh.
+  const isFetching = history.some((entry) => entry.status === "fetching");
   useEffect(() => {
-    const ms = history.some((entry) => entry.status === "fetching")
-      ? 1500
-      : 3000;
-    const timer = setInterval(refresh, ms);
+    if (!isFetching) return;
+    const timer = setInterval(refresh, 1500);
     return () => clearInterval(timer);
-  }, [history]);
+  }, [isFetching]);
 
   useEffect(() => {
     clearBackgroundCompletedFlags();
@@ -126,9 +141,9 @@ export default function Command(
   }
 
   async function removeEntry(id: string) {
-    const next = history.filter((entry) => entry.id !== id);
-    setHistory(next);
-    await saveHistory(next);
+    setHistory((current) => current.filter((entry) => entry.id !== id));
+    // Drops the index row and its transcript body together.
+    await removeHistoryEntry(id);
     await showToast({
       style: Toast.Style.Success,
       title: "Removed from history",
@@ -195,6 +210,34 @@ export default function Command(
       }
     });
   }, [history, searchText, sortOrder]);
+
+  const selectedEntry = history.find((entry) => entry.id === selectedId);
+  // Re-hydrate when the selection moves, or when the selected entry's transcript
+  // itself changes (a fetch completing under it).
+  const hydrationKey = selectedEntry
+    ? `${selectedEntry.id}:${selectedEntry.status}:${selectedEntry.segmentCount}`
+    : "";
+
+  useEffect(() => {
+    if (!selectedEntry || selectedEntry.status !== "finished") {
+      setPaneSegments({ id: selectedId ?? "" });
+      return;
+    }
+
+    let cancelled = false;
+    loadSegments(selectedEntry.id).then((segments) => {
+      if (!cancelled) setPaneSegments({ id: selectedEntry.id, segments });
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [hydrationKey]);
+
+  const paneEntry =
+    selectedEntry && paneSegments.id === selectedEntry.id && paneSegments.segments
+      ? { ...selectedEntry, rawSegments: paneSegments.segments }
+      : selectedEntry;
 
   const defaultAI = getDefaultAIAction();
   const customActions = getCustomActions();
@@ -264,19 +307,8 @@ export default function Command(
             target={<TranscriptSearchView entry={entry} />}
             shortcut={{ modifiers: ["cmd"], key: "f" }}
           />
-          <Action.CopyToClipboard
-            title="Copy Transcript"
-            content={materializeOutput(entry, "text")}
-          />
-          <Action.CopyToClipboard
-            title="Copy as Rich Text"
-            icon={Icon.Clipboard}
-            content={{
-              html: buildRichTextHtml(entry),
-              text: materializeOutput(entry, "text"),
-            }}
-            shortcut={{ modifiers: ["cmd", "shift"], key: "." }}
-          />
+          <CopyTranscriptAction entry={entry} />
+          <CopyRichTextAction entry={entry} />
           <Action.OpenInBrowser
             title="Open Video"
             url={entry.url}
@@ -363,17 +395,26 @@ export default function Command(
   );
   };
 
-  const renderItem = (entry: HistoryEntry) => (
+  const renderItem = (entry: HistoryEntry) => {
+    const row = buildHistoryRowPresentation(entry);
+    const isSelected = entry.id === selectedId;
+
+    return (
     <List.Item
       key={entry.id}
       id={entry.id}
-      title={buildHistoryRowPresentation(entry).title}
-      subtitle={buildHistoryRowPresentation(entry).subtitle}
+      title={row.title}
+      subtitle={row.subtitle}
       detail={
         <List.Item.Detail
-          markdown={buildHistoryDetailMarkdown(entry, "text", {
-            surface: "history-pane",
-          })}
+          markdown={
+            // Only the selected row's pane is on screen, so only it is built.
+            isSelected
+              ? buildHistoryDetailMarkdown(paneEntry ?? entry, "text", {
+                  surface: "history-pane",
+                })
+              : ""
+          }
         />
       }
       accessories={[
@@ -394,7 +435,8 @@ export default function Command(
       ]}
       actions={rowActions(entry)}
     />
-  );
+    );
+  };
 
   if (autoNav) {
     switch (autoNav.target) {
@@ -416,6 +458,7 @@ export default function Command(
       searchText={searchText}
       onSearchTextChange={setSearchText}
       selectedItemId={selectedItemId}
+      onSelectionChange={(id) => setSelectedId(id ?? undefined)}
     >
       {filteredHistory.length === 0 ? (
         <List.EmptyView

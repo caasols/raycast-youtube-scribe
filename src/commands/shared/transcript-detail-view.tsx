@@ -16,17 +16,21 @@ import {
   saveToDownloads,
   sanitizeFilename,
 } from "../../lib/export";
-import { buildRichTextHtml, materializeOutput } from "../../lib/output";
 import { isRetryable } from "../../lib/error-classification";
+import {
+  CopyTranscriptAction,
+  CopyRichTextAction,
+} from "./copy-transcript-actions";
 import type { HistoryEntry, ExportFormat } from "../../types";
 import { TranscriptSummaryView } from "../transcript-history/transcript-summary-view";
 import { TranscriptAskView } from "../transcript-history/transcript-ask-view";
 import { getCustomActions, getDefaultAIAction } from "../../lib/preferences";
 import { AiChatsView, hasAiChats } from "../transcript-history/ai-chats-view";
 import { TranscriptCustomActionView } from "../transcript-history/transcript-custom-action-view";
+import { useHydratedEntry } from "../../lib/use-hydrated-entry";
 
 export function TranscriptDetailView({
-  entry,
+  entry: leanEntry,
   onRetry,
   onOpenHistory,
 }: {
@@ -34,6 +38,9 @@ export function TranscriptDetailView({
   onRetry?: () => void;
   onOpenHistory?: () => Promise<void>;
 }) {
+  // The history index carries no transcript body since schema v6; pull it in
+  // before rendering, copying, or exporting.
+  const { entry, isHydrating } = useHydratedEntry(leanEntry);
   const defaultAI = getDefaultAIAction();
   const customActions = getCustomActions();
 
@@ -58,6 +65,7 @@ export function TranscriptDetailView({
 
   return (
     <Detail
+      isLoading={isHydrating}
       markdown={buildHistoryDetailMarkdown(entry, "text", {
         surface: "full-detail",
       })}
@@ -151,15 +159,8 @@ export function TranscriptDetailView({
                   />
                 )}
               </ActionPanel.Submenu>
-              <Action.CopyToClipboard
-                title="Copy as Rich Text"
-                icon={Icon.Clipboard}
-                content={{
-                  html: buildRichTextHtml(entry),
-                  text: materializeOutput(entry, "text"),
-                }}
-                shortcut={{ modifiers: ["cmd", "shift"], key: "." }}
-              />
+              <CopyTranscriptAction entry={entry} />
+              <CopyRichTextAction entry={entry} />
             </>
           )}
           {entry.status === "error" && (

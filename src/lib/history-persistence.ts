@@ -1,10 +1,53 @@
 import { repairStaleFetchingEntries } from "./history-logic";
 import { classifyTranscriptError } from "./error-classification";
+import { countWords } from "./text-utils";
 import { makeFetchKey } from "./youtube";
-import type { HistoryEntry } from "../types";
+import type { HistoryEntry, TranscriptSegment } from "../types";
 
-export const HISTORY_SCHEMA_VERSION = 5;
+export const HISTORY_SCHEMA_VERSION = 6;
 export const DEFAULT_HISTORY_ENTRY_LIMIT = 100;
+
+export type TranscriptStats = {
+  wordCount: number;
+  transcriptDurationMs: number;
+};
+
+/**
+ * Stats the history list needs but which can only be derived from the transcript
+ * body. Computed once at write time so lean index rows still render duration,
+ * word count, and reading time without loading any segments.
+ */
+export function computeTranscriptStats(
+  segments: TranscriptSegment[] | undefined,
+): TranscriptStats | undefined {
+  if (!segments?.length) return undefined;
+
+  const first = segments[0];
+  const last = segments[segments.length - 1];
+
+  return {
+    wordCount: countWords(segments.map((s) => s.text).join(" ")),
+    transcriptDurationMs: Math.max(
+      0,
+      last.start_ms + last.duration_ms - first.start_ms,
+    ),
+  };
+}
+
+/**
+ * Drop the transcript body, backfilling any derived stats it still owes the
+ * index. This is the boundary that keeps transcripts out of the index blob.
+ */
+export function stripSegments(entry: HistoryEntry): HistoryEntry {
+  const stats =
+    entry.wordCount === undefined || entry.transcriptDurationMs === undefined
+      ? computeTranscriptStats(entry.rawSegments)
+      : undefined;
+
+  const lean: HistoryEntry = { ...entry, ...stats };
+  delete lean.rawSegments;
+  return lean;
+}
 
 export type RetentionPolicy = {
   maxEntries: number;
@@ -22,7 +65,7 @@ function entryTimestamp(entry: HistoryEntry): number {
   return Number.isNaN(timestamp) ? 0 : timestamp;
 }
 
-function pruneHistory(
+export function pruneHistory(
   entries: HistoryEntry[],
   policy: RetentionPolicy = {
     maxEntries: DEFAULT_HISTORY_ENTRY_LIMIT,
@@ -101,62 +144,68 @@ function normalizeEntry(
   return normalized;
 }
 
+/**
+ * Normalize, prune, and strip transcript bodies. The returned entries are exactly
+ * what gets persisted, so callers can diff their ids to find dropped bodies.
+ */
+export function prepareHistoryForWrite(
+  entries: HistoryEntry[],
+  policy?: RetentionPolicy,
+): HistoryEntry[] {
+  return pruneHistory(
+    entries.map((e) =>
+      stripSegments(normalizeEntry(e, policy?.aiChatMaxAgeDays)),
+    ),
+    policy,
+  );
+}
+
 export function serializeHistory(
   entries: HistoryEntry[],
   policy?: RetentionPolicy,
 ): string {
   const payload: HistoryStoreEnvelope = {
     version: HISTORY_SCHEMA_VERSION,
-    entries: pruneHistory(
-      entries.map((e) => normalizeEntry(e, policy?.aiChatMaxAgeDays)),
-      policy,
-    ),
+    entries: prepareHistoryForWrite(entries, policy),
   };
 
   return JSON.stringify(payload);
 }
 
+/**
+ * Read the index. Deliberately does no serialization work: an earlier version
+ * re-serialized the whole store just to compute a `didMigrate` flag that the
+ * caller threw away, which cost a full extra copy of every entry on every read
+ * and was a major contributor to hitting Raycast's 100 MB heap limit.
+ */
 export function deserializeHistory(
   raw?: string | null,
   policy?: RetentionPolicy,
 ): {
   entries: HistoryEntry[];
-  serialized: string;
-  didMigrate: boolean;
+  version: number;
 } {
   if (!raw) {
-    return {
-      entries: [],
-      serialized: serializeHistory([], policy),
-      didMigrate: false,
-    };
+    return { entries: [], version: HISTORY_SCHEMA_VERSION };
   }
 
   try {
     const parsed = JSON.parse(raw) as HistoryStoreEnvelope | HistoryEntry[];
+    const isEnvelope = !Array.isArray(parsed);
     const rawEntries = Array.isArray(parsed)
       ? parsed
       : Array.isArray(parsed.entries)
         ? parsed.entries
         : [];
+    // A bare array predates the version envelope entirely.
+    const version = isEnvelope ? ((parsed as HistoryStoreEnvelope).version ?? 0) : 0;
 
     const normalized = repairStaleFetchingEntries(
       rawEntries.map((entry) => normalizeEntry(entry, policy?.aiChatMaxAgeDays)),
     );
-    const pruned = pruneHistory(normalized, policy);
-    const serialized = serializeHistory(pruned, policy);
-    const didMigrate = raw !== serialized;
 
-    return {
-      entries: pruned,
-      serialized,
-      didMigrate,
-    };
+    return { entries: pruneHistory(normalized, policy), version };
   } catch {
-    return {
-      entries: [],
-      serialized: serializeHistory([], policy),
-      didMigrate: false,
-    };
+    return { entries: [], version: HISTORY_SCHEMA_VERSION };
   }
 }

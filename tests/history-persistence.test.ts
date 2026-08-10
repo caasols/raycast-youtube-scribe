@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 describe("history persistence", () => {
   it("migrates legacy array history into the current schema and canonicalizes finished output", async () => {
-    const { deserializeHistory } =
+    const { deserializeHistory, serializeHistory, HISTORY_SCHEMA_VERSION } =
       await import("../src/lib/history-persistence");
 
     const result = deserializeHistory(
@@ -26,7 +26,8 @@ describe("history persistence", () => {
       ]),
     );
 
-    expect(result.didMigrate).toBe(true);
+    // A bare array predates the version envelope, so it reads as version 0.
+    expect(result.version).toBe(0);
     expect(result.entries).toEqual([
       expect.objectContaining({
         id: "1",
@@ -34,9 +35,12 @@ describe("history persistence", () => {
         statusMessage: undefined,
       }),
     ]);
-    expect(result.serialized).toContain('"version":5');
-    expect(result.serialized).not.toContain('"format":');
-    expect(result.serialized).not.toContain('"output":');
+
+    const serialized = serializeHistory(result.entries);
+    expect(serialized).toContain(`"version":${HISTORY_SCHEMA_VERSION}`);
+    expect(serialized).not.toContain('"format":');
+    expect(serialized).not.toContain('"output":');
+    expect(serialized).not.toContain('"rawSegments":');
   });
 
   it("reads the wrapped schema without rewriting when entries are already normalized", async () => {
@@ -45,7 +49,7 @@ describe("history persistence", () => {
 
     const result = deserializeHistory(
       JSON.stringify({
-        version: 5,
+        version: 6,
         entries: [
           {
             id: "1",
@@ -62,7 +66,7 @@ describe("history persistence", () => {
       }),
     );
 
-    expect(result.didMigrate).toBe(false);
+    expect(result.version).toBe(6);
     expect(result.entries).toEqual([
       expect.objectContaining({
         id: "1",
@@ -73,7 +77,7 @@ describe("history persistence", () => {
   });
 
   it("backfills errorKind when migrating v3 error entries to v4", async () => {
-    const { deserializeHistory } =
+    const { deserializeHistory, serializeHistory, HISTORY_SCHEMA_VERSION } =
       await import("../src/lib/history-persistence");
 
     const result = deserializeHistory(
@@ -97,9 +101,11 @@ describe("history persistence", () => {
       }),
     );
 
-    expect(result.didMigrate).toBe(true);
+    expect(result.version).toBe(3);
     expect(result.entries[0]?.errorKind).toBe("timeout");
-    expect(result.serialized).toContain('"version":5');
+    expect(serializeHistory(result.entries)).toContain(
+      `"version":${HISTORY_SCHEMA_VERSION}`,
+    );
   });
 
   it("retains at most 100 entries, sorted by recency regardless of status", async () => {
