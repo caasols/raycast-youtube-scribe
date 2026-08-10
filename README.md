@@ -129,6 +129,33 @@ Open **Raycast Preferences > Extensions > YouTube Transcribe** to customize:
 
 For persistent issues, [open an issue](https://github.com/caasols/raycast-youtube-scribe/issues) with reproduction steps.
 
+## Development
+
+`npm run dev` deploys to **stable Raycast** (`~/.config/raycast/`). If you run **Raycast Beta**,
+it loads from a different directory (`~/.config/raycast-x/`) and will keep running whatever build
+it last received, so your changes appear to have no effect at all: no new behaviour, no updated
+command titles, no `console.log` output.
+
+Target Beta either per invocation:
+
+```bash
+npm run dev -- --target x
+```
+
+or once, so the plain commands do the right thing on your machine:
+
+```jsonc
+// ~/.config/raycast/config.json
+{ "Target": "x" }
+```
+
+To confirm which build Raycast is actually running, check the deployed manifest:
+
+```bash
+grep '"title"' ~/.config/raycast-x/extensions/youtube-transcribe/package.json   # Beta
+grep '"title"' ~/.config/raycast/extensions/youtube-transcribe/package.json     # stable
+```
+
 ## Contributing
 
 1. Fork the repository
