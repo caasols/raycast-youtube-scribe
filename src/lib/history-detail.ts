@@ -79,18 +79,29 @@ function statusText(entry: HistoryEntry): string {
   return "Failed";
 }
 
-function durationLabel(entry: HistoryEntry): string {
-  const segments = entry.rawSegments ?? [];
-  if (segments.length === 0) {
-    return entry.videoMetadata?.durationText ?? "--:--";
+/**
+ * Prefer the stat stored on the index row: since schema v6 the history list
+ * renders lean entries whose transcript body lives under a separate key.
+ */
+function transcriptDurationMs(entry: HistoryEntry): number | undefined {
+  if (entry.transcriptDurationMs !== undefined) {
+    return entry.transcriptDurationMs;
   }
+
+  const segments = entry.rawSegments ?? [];
+  if (segments.length === 0) return undefined;
 
   const first = segments[0];
   const last = segments[segments.length - 1];
-  const durationMs = Math.max(
-    0,
-    last.start_ms + last.duration_ms - first.start_ms,
-  );
+  return Math.max(0, last.start_ms + last.duration_ms - first.start_ms);
+}
+
+function durationLabel(entry: HistoryEntry): string {
+  const durationMs = transcriptDurationMs(entry);
+  if (durationMs === undefined) {
+    return entry.videoMetadata?.durationText ?? "--:--";
+  }
+
   const totalSeconds = Math.round(durationMs / 1000);
   const minutes = Math.floor(totalSeconds / 60)
     .toString()
@@ -144,7 +155,9 @@ function contentKindLabel(kind?: YoutubeContentKind): string | undefined {
 }
 
 function transcriptWordCount(entry: HistoryEntry): number {
-  if (entry.status !== "finished" || !entry.rawSegments?.length) return 0;
+  if (entry.status !== "finished") return 0;
+  if (entry.wordCount !== undefined) return entry.wordCount;
+  if (!entry.rawSegments?.length) return 0;
   return countWords(entry.rawSegments.map((s) => s.text).join(" "));
 }
 

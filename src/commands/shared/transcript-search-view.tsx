@@ -9,9 +9,16 @@ import {
   highlightTranscriptText,
 } from "../../lib/transcript-search";
 import type { HistoryEntry } from "../../types";
+import { useHydratedEntry } from "../../lib/use-hydrated-entry";
 
-export function TranscriptSearchView({ entry }: { entry: HistoryEntry }) {
+export function TranscriptSearchView({
+  entry: leanEntry,
+}: {
+  entry: HistoryEntry;
+}) {
   const [query, setQuery] = useState("");
+  // The history index carries no transcript body since schema v6.
+  const { entry, isHydrating } = useHydratedEntry(leanEntry);
 
   const segments = entry.rawSegments ?? [];
   const chunks = useMemo(() => buildTranscriptChunks(segments), [segments]);
@@ -24,6 +31,7 @@ export function TranscriptSearchView({ entry }: { entry: HistoryEntry }) {
 
   return (
     <List
+      isLoading={isHydrating}
       searchText={query}
       onSearchTextChange={setQuery}
       filtering={false}

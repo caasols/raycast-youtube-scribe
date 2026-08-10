@@ -90,7 +90,17 @@ export type HistoryEntry = {
   title: string;
   language?: string;
   segmentCount: number;
+  /**
+   * Transcript body. In-memory only — never persisted into the history index.
+   * Since schema v6 the body lives under its own `youtube-transcript-segments::<id>`
+   * key so the history list can render without loading every transcript.
+   * Populated by `hydrateEntry` / `loadHydratedEntry`.
+   */
   rawSegments?: TranscriptSegment[];
+  /** Derived from rawSegments at write time so lean index rows can still render. */
+  wordCount?: number;
+  /** Derived from rawSegments at write time so lean index rows can still render. */
+  transcriptDurationMs?: number;
   status: TranscriptStatus;
   statusMessage?: string;
   errorLog?: string;

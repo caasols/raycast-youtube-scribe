@@ -3,14 +3,23 @@ import type {
   CachedAiSummary,
   CachedAiAnswer,
 } from "../types";
-import { loadHistory, patchHistoryEntry } from "../history-store";
+import { loadHistory, loadHydratedEntry, patchHistoryEntry } from "../history-store";
 
 /**
- * Load the latest version of an entry from LocalStorage.
- * The `entry` prop passed via Action.Push is a stale snapshot —
- * this fetches the real current state so cached AI data is visible.
+ * Load the latest version of an entry from LocalStorage, transcript body included.
+ *
+ * The `entry` prop passed via Action.Push is a stale snapshot, and since schema v6
+ * it is also lean (no `rawSegments`). Callers that build AI prompts must wait for
+ * this before generating, or the model would be handed an empty transcript.
  */
 export async function loadFreshEntry(
+  entryId: string,
+): Promise<HistoryEntry | undefined> {
+  return loadHydratedEntry(entryId);
+}
+
+/** Same, but without paying to read the transcript body. */
+export async function loadFreshEntryLean(
   entryId: string,
 ): Promise<HistoryEntry | undefined> {
   const entries = await loadHistory();

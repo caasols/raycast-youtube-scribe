@@ -133,17 +133,28 @@ export function TranscriptCustomActionView({
     () => findCachedAnswer(entry, actionName)?.answer,
   );
   const [freshEntry, setFreshEntry] = useState(entry);
+  // The prop is both stale and (since v6) missing its transcript body, so the
+  // generator must not run until the hydrated entry has loaded.
+  const [isHydrating, setIsHydrating] = useState(
+    !entry.rawSegments?.length && entry.status === "finished",
+  );
 
   useEffect(() => {
-    loadFreshEntry(entry.id).then((loaded) => {
-      if (!loaded) return;
-      setFreshEntry(loaded);
-      const cached = findCachedAnswer(loaded, actionName);
-      if (cached && !displayContent) {
-        setDisplayContent(cached.answer);
-      }
-    });
+    loadFreshEntry(entry.id)
+      .then((loaded) => {
+        if (!loaded) return;
+        setFreshEntry(loaded);
+        const cached = findCachedAnswer(loaded, actionName);
+        if (cached && !displayContent) {
+          setDisplayContent(cached.answer);
+        }
+      })
+      .finally(() => setIsHydrating(false));
   }, [entry.id, actionName]);
+
+  if (isHydrating) {
+    return <Detail isLoading markdown="" navigationTitle={actionName} />;
+  }
 
   if (!displayContent || generating) {
     return (

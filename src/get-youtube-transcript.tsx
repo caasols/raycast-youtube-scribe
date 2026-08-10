@@ -15,6 +15,7 @@ import {
 import { FormValidation, useForm } from "@raycast/utils";
 import { useEffect, useMemo, useState } from "react";
 import {
+  hydrateEntry,
   loadHistory,
   patchHistoryEntryAndMoveToFront,
   patchHistoryEntry,
@@ -57,6 +58,17 @@ type UiMode = "detecting" | "fetching" | "opening" | "manual-form" | "detail";
 
 async function yieldToRenderer() {
   await new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+/**
+ * A cache hit comes back lean (the index carries no transcript body since schema
+ * v6), so hydrate before copying or the clipboard would silently end up empty.
+ * Entries that just finished in-process already carry their body and pass through.
+ */
+async function copyEntryOutput(entry: HistoryEntry): Promise<void> {
+  if (!shouldCopyEntryOutput(entry)) return;
+  const full = await hydrateEntry(entry);
+  await Clipboard.copy(materializeOutput(full, "text"));
 }
 
 async function fetchVideoTitle(videoId: string): Promise<string> {
@@ -217,9 +229,7 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
           transcriptJobDeps,
         );
 
-        if (shouldCopyEntryOutput(entry)) {
-          await Clipboard.copy(materializeOutput(entry, "text"));
-        }
+        await copyEntryOutput(entry);
 
         if (fromCache) {
           if (getFetchCompletionDestination(entry) === "detail") {
@@ -241,9 +251,7 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
           patchHistoryEntry,
         });
 
-        if (shouldCopyEntryOutput(finished)) {
-          await Clipboard.copy(materializeOutput(finished, "text"));
-        }
+        await copyEntryOutput(finished);
 
         launchAutoSummarize(finished);
         setDetailEntry(finished);
@@ -351,9 +359,7 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
           transcriptJobDeps,
         );
 
-        if (shouldCopyEntryOutput(entry)) {
-          await Clipboard.copy(materializeOutput(entry, "text"));
-        }
+        await copyEntryOutput(entry);
 
         if (fromCache) {
           if (getFetchCompletionDestination(entry) === "detail") {
@@ -377,9 +383,7 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
           patchHistoryEntry,
         });
 
-        if (shouldCopyEntryOutput(finished)) {
-          await Clipboard.copy(materializeOutput(finished, "text"));
-        }
+        await copyEntryOutput(finished);
 
         launchAutoSummarize(finished);
         setUiMode("opening");
