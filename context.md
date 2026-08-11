@@ -111,8 +111,11 @@ Open items only. Verify against the code before acting on any of these.
   would point at a repo that does not exist. Order matters: rename on GitHub first (it
   auto-redirects the old URL, so nothing breaks in the gap), then update the remote, the three
   README links, and the screenshot filename in a single pass.
-- **Lint is red repo-wide** from a Prettier version bump, not from any specific change. A
-  formatting-only pass would fix it but would bury real diffs; do it as its own commit.
+- **Lint had never been green, and the Prettier version was a red herring.** Measured on
+  2026-08-11: 3.5.3 changed 34 files, 3.8.1 changed 32, 3.9.6 changed 32, and the tree at
+  `e414139` was already unformatted under 3.5.3. The code had simply never been formatted.
+  The real cause was that nothing enforced the check. Fixed by formatting once, pinning
+  Prettier exactly, and adding CI that runs `npm run lint`.
 - **Pre-open-source items** carried from `roadmap.md`: copy polish, extraction refactors, dead
   code audit, `package.json` metadata (`repository`, `homepage`, `bugs`, `keywords`),
   `CONTRIBUTING.md`, and backfilling `CHANGELOG.md`.
