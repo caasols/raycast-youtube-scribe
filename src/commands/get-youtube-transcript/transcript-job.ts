@@ -311,15 +311,26 @@ export async function prepareTranscriptJob(
     await deps.prependHistory(pending);
   }
 
-  const title = await deps.fetchVideoTitle(videoId);
-  await deps.patchHistoryEntry(id, { title });
+  // Resolved before returning: the worker needs it, and reading the focused tab
+  // is only reliable while this command is still in front.
   const cookieBrowserApp = maybeResolveCookieBrowser(inputResolution, deps);
 
+  // The oembed title is a nicety, not a dependency. Awaiting it here put a
+  // network round trip in front of the worker launch, and until the worker
+  // exists a dismissed Raycast window loses the fetch outright. Kick it off
+  // without blocking: the pending row shows a provisional title for a moment,
+  // and the authoritative title comes from yt-dlp metadata when the fetch lands.
+  const provisionalTitle = pending.title;
+  void Promise.resolve(deps.fetchVideoTitle(videoId))
+    .then((title) =>
+      title && title !== provisionalTitle
+        ? deps.patchHistoryEntry(id, { title })
+        : undefined,
+    )
+    .catch(() => undefined);
+
   return {
-    entry: {
-      ...pending,
-      title,
-    },
+    entry: pending,
     fromCache: false,
     backgroundTask: {
       entryId: id,
@@ -327,7 +338,7 @@ export async function prepareTranscriptJob(
       resolvedUrl,
       videoId,
       contentKind,
-      title,
+      title: provisionalTitle,
       requestedLanguage: normalizedLanguage,
       source: inputResolution.source,
       app: inputResolution.app,

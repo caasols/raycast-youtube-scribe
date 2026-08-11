@@ -27,6 +27,10 @@ Seven layers, roughly in dependency order:
    loading, launches the worker, and transitions to the detail view.
 3. **Background execution** (`fetch-youtube-transcript-worker.ts`, `fetch-playlist-worker.ts`,
    `ai-summarize-worker.ts`) owns long-running work so it survives the window closing.
+   **Time-to-worker matters:** until `launchCommand` has fired there is no background job, so
+   dismissing Raycast in that window loses the fetch. Nothing slow may sit in front of the
+   worker launch in `prepareTranscriptJob`, which is why the oembed title lookup is now
+   fire-and-forget rather than awaited.
 4. **Persistence** (`history-store.ts`, `lib/history-persistence.ts`) is the only path to stored
    state. See the storage model below.
 5. **Provider** (`lib/ytdlp.ts`, `lib/ytdlp-command.ts`, `lib/ytdlp-metadata.ts`) shells out to
@@ -73,27 +77,29 @@ write time so the list can still render duration, word count, and reading time.
 
 - `src/` 49 files. `src/lib/` holds pure helpers with near-total test coverage; `src/commands/`
   holds React views and orchestration.
-- `tests/` 31 files, 186 tests, one skipped (the network smoke test, opt-in via
-  `RUN_YTDLP_SMOKE=1`).
+- `tests/` 32 files, 189 tests (all pass with `RUN_YTDLP_SMOKE=1`; the smoke test is skipped
+  without it).
 - `docs/` is gitignored except for tracked files already in git (`roadmap.md`, some specs).
 - `graphify-out/` holds a semantically labelled code graph (20 communities, e.g.
   `History Store Persistence`, `Background Fetch Workers`, `Transcript Job Preparation`).
   Gitignored. Rebuild structure with `graphify update .` (free); relabel with
   `graphify label --backend=claude-cli` only when communities are added.
 
+## Verified behaviour
+
+- Background fetching survives the Raycast window being dismissed (confirmed 2026-08-11, after
+  the `interval` removal). The worker is reached via `launchCommand`; `interval` only ever
+  controlled scheduled wakeups.
+- `launchCommand` throws if the target command is "not enabled", which is why
+  `disabledByDefault` on the workers is unsafe as well as ineffective.
+
 ## Backlog
 
 Open items only. Verify against the code before acting on any of these.
 
-- **Confirm background fetch after the `interval` removal.** The three workers no longer declare
-  `interval: "1h"`, which stopped pointless hourly wakeups. Launching still goes through
-  `launchCommand`, but this has not been exercised end to end: run a fetch, close Raycast
-  mid-way, confirm the transcript completes and no "Background worker did not start" toast fires.
 - **Worker commands are visible in root search and cannot be hidden.** `disabledByDefault: true`
   was tried and Raycast ignores it for development extensions. Unknown whether it applies to
   store installs. No known fix; Raycast has no concept of a private command.
-- **`docs/agent-handoff.md` is stale and untracked.** It documents schema v3 and a source path
-  that no longer exists. Either update it against this document or delete it.
 - **Two overlapping roadmaps.** `roadmap.md` (pre-open-source checklist) and `docs/roadmap.md`
   (shipped plus future work) should probably be consolidated.
 - **Lint is red repo-wide** from a Prettier version bump, not from any specific change. A
