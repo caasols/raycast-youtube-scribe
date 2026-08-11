@@ -208,24 +208,21 @@
       "title": "Fetch YouTube Transcript Worker",
       "subtitle": "YouTube Transcribe",
       "description": "Internal background worker for transcript fetching",
-      "mode": "no-view",
-      "interval": "1h"
+      "mode": "no-view"
     },
     {
       "name": "ai-summarize-worker",
       "title": "AI Summarize Worker",
       "subtitle": "YouTube Transcribe",
       "description": "Internal background worker for AI summarization",
-      "mode": "no-view",
-      "interval": "1h"
+      "mode": "no-view"
     },
     {
       "name": "fetch-playlist-worker",
       "title": "Fetch Playlist Worker",
       "subtitle": "YouTube Transcribe",
       "description": "Internal background worker for playlist transcript fetching",
-      "mode": "no-view",
-      "interval": "1h"
+      "mode": "no-view"
     }
   ],
   "dependencies": {

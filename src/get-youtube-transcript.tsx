@@ -120,9 +120,19 @@ function launchTranscriptWorker(task: PreparedTranscriptBackgroundTask): void {
     name: "fetch-youtube-transcript-worker",
     type: LaunchType.Background,
     context: { task },
-  }).catch(() => {
+  }).catch((error) => {
     // Fire-and-forget: if the worker fails to launch, the foreground
     // will still complete the fetch as long as the user stays in Raycast.
+    // Surfaced because a silent failure here downgrades background fetching
+    // without any signal that it happened.
+    void showToast({
+      style: Toast.Style.Failure,
+      title: "Background worker did not start",
+      message:
+        error instanceof Error
+          ? error.message
+          : "Transcript will only finish while Raycast stays open.",
+    });
   });
 }
 
