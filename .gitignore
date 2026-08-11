@@ -10,3 +10,7 @@ docs/
 .idea/
 *.log
 npm-debug.log*
+
+# Code graph output (regenerate with: graphify update .)
+graphify-out/
+coverage/
