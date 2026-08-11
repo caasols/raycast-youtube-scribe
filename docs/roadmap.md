@@ -50,9 +50,77 @@ Architecture decisions that are fixed:
 17. ~~Configurable retention policy~~ — user-configurable history size cap and max age pruning via extension preferences.
 18. ~~Fix history store race condition~~ — removed side-effect write from `loadHistory()` to prevent background worker from overwriting foreground saves.
 19. ~~Fix title fallback for restricted videos~~ — added yt-dlp metadata title to pipeline; entries now get real titles even when oembed API fails.
+20. ~~Split transcript bodies out of the history index (schema v6)~~ : transcript bodies moved to per-entry `youtube-transcript-segments::<id>` keys. The history list loads metadata only and hydrates just the selected transcript. Fixes the "Command Out of Memory" crash at Raycast's 100 MB heap limit. Index dropped from roughly 19 MB to 0.4 MB at 100 entries.
+21. ~~Restore video metadata~~ : added `--ignore-no-formats-error` to the yt-dlp metadata call. Format selection was failing YouTube's n-challenge, and because metadata is non-fatal every new fetch silently lost channel, thumbnail, duration, and engagement counts.
 
 ---
 
 ## Future Improvements
 
-(No pending items — all planned features have been completed.)
+Ideas below are candidates, not commitments. Each should be brainstormed before
+implementation, particularly around how it degrades when the AI output is poor.
+
+A useful consequence of the v6 storage split: auxiliary per-entry data is now
+cheap. Chapters, translations, and notes all fit the `<kind>::<entryId>` keyspace
+without touching the history index, so none of them reintroduce the memory
+problem that v6 solved.
+
+### 1. Explain this passage
+
+Add an "Explain with AI" action to a selected transcript segment, passing the
+surrounding chunks as context so the explanation is grounded rather than
+isolated.
+
+- Why: the most keyboard-native of these ideas, and the transcript search surface
+  already selects individual chunks.
+- Plugs into: `commands/shared/transcript-search-view.tsx`, reusing the prompt
+  machinery behind `buildCustomActionPrompt`.
+- Effort: low. Best starting point of the four.
+
+### 2. AI chapters
+
+Generate a chapter breakdown with timestamps, rendered as a navigable index in
+the detail view.
+
+- Why: long transcripts currently read as one wall of text. Chapters turn the
+  reader into an index and are the natural payoff for the timestamp deep links
+  that already exist.
+- Plugs into: new `chapters::<entryId>` key, plus a section in
+  `lib/history-detail.ts`.
+- Open question: generate on demand or at fetch time, and what to show when the
+  model segments a video badly.
+- Effort: medium. Highest leverage on how the extension feels.
+
+### 3. Transcript translation and bilingual view
+
+Translate the transcript itself into a target language, with a toggle for
+original, translated, or aligned side-by-side.
+
+- Why: the current `aiResponseLanguage` preference only affects AI answers. The
+  transcript is never translated, which is a real gap for language learning.
+- Plugs into: new `translation::<entryId>::<lang>` key, toggle in the detail view.
+- Effort: medium to high. Cost and latency need thought for long transcripts.
+
+### 4. Timestamped notes
+
+Let the user write their own notes anchored to a timestamp, and fold them into
+the Markdown export.
+
+- Why: the extension stores AI output but nothing the user writes themselves.
+- Plugs into: new `notes::<entryId>` key, a Form view, and `lib/export.ts`.
+- Effort: medium.
+
+### Deliberately not pursued
+
+- Third-party transcript APIs such as Supadata: a strict downgrade from yt-dlp,
+  which already handles captions, metadata, playlists, and auth-gated videos.
+- Extracting key quotes as a built-in: already achievable through the existing
+  custom AI action templates.
+
+### Known open items
+
+- `disabledByDefault` on the three background workers hides them from root
+  search, but it is unverified whether `launchCommand` can still reach a disabled
+  command. If it cannot, background fetching breaks and the flag must be reverted.
+- `docs/agent-handoff.md` is untracked and stale: it still documents schema v3
+  and a source path that no longer exists.
