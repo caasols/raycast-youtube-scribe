@@ -6,7 +6,7 @@
 
 A Raycast extension for fetching, browsing, and exporting YouTube transcripts with AI-powered summaries and Q&A. Auto-detects videos from your clipboard or focused browser tab, fetches captions via [yt-dlp](https://github.com/yt-dlp/yt-dlp), and keeps a searchable transcript history.
 
-![YouTube Transcribe Screenshot](./metadata/youtube-scribe-1.png)
+![Transcript history on the left, the selected transcript with metadata and timestamped text in the middle, and its AI summary on the right](./media/youtube-transcribe-hero.png)
 
 ## Installation
 

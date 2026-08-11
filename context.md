@@ -105,12 +105,14 @@ Open items only. Verify against the code before acting on any of these.
 - **The old `-scribe` name survives in the repo, not in the extension.** The Raycast identity is
   already correct (`package.json` is `youtube-transcribe`), and the working folder was renamed to
   `raycast-youtube-transcribe` on 2026-08-11. Still carrying the old name: the git remote
-  (`caasols/raycast-youtube-scribe`), the clone URL, `cd` line, and issues link in `README.md`
-  (lines 20, 21, 130), and `metadata/youtube-scribe-1.png`. These are **correct as of today**,
-  because the GitHub repo really is still named `raycast-youtube-scribe`; rewriting them now
-  would point at a repo that does not exist. Order matters: rename on GitHub first (it
-  auto-redirects the old URL, so nothing breaks in the gap), then update the remote, the three
-  README links, and the screenshot filename in a single pass.
+  (`caasols/raycast-youtube-scribe`), and the clone URL, `cd` line, and issues link in
+  `README.md` (lines 20, 21, 130). These are **correct as of today**, because the GitHub repo
+  really is still named `raycast-youtube-scribe`; rewriting them now would point at a repo that
+  does not exist. Order matters: rename on GitHub first (it auto-redirects the old URL, so
+  nothing breaks in the gap), then update the remote and the three README links in a single
+  pass. The screenshot filename is no longer part of that pending work: it was already renamed
+  on 2026-08-11, `metadata/youtube-scribe-1.png` becoming `media/youtube-transcribe-hero.png`
+  plus `metadata/youtube-transcribe-{1,2,3}.png`.
 - **Lint had never been green, and the Prettier version was a red herring.** Measured on
   2026-08-11: 3.5.3 changed 34 files, 3.8.1 changed 32, 3.9.6 changed 32, and the tree at
   `e414139` was already unformatted under 3.5.3. The code had simply never been formatted.
