@@ -118,6 +118,34 @@ Open items only. Verify against the code before acting on any of these.
   `e414139` was already unformatted under 3.5.3. The code had simply never been formatted.
   The real cause was that nothing enforced the check. Fixed by formatting once, pinning
   Prettier exactly, and adding CI that runs `npm run lint`.
+- **CI workflow could be hardened.** `.github/workflows/ci.yml` has no `permissions` block and no
+  `concurrency` group. Adding `permissions: contents: read` at job level is cheap least privilege
+  for a public repo, and a concurrency group stops rapid pushes queueing redundant runs. Left out
+  deliberately on 2026-08-11 because the plan specified that YAML verbatim and YAGNI applied to a
+  solo project; the final review raised both as worth doing later.
+- **`.gitignore` lists `docs/` while six `docs/` files are tracked.** Adding a new spec or plan
+  therefore needs `git add -f`, and anything created without it is silently dropped. Pre-existing
+  inconsistency; either narrow the ignore rule or drop it.
+- **`README.md` prose still uses em-dashes** in the feature bullets, roughly lines 37 to 62,
+  against the no-em-dash house rule. Confirmed pre-existing and untouched by the 2026-08-11
+  formatting work (34 before, 34 after), so it belongs with the copy polish item below rather
+  than with any lint work.
+- **Store screenshot 2 is the weakest of the three.** `metadata/youtube-transcribe-2.png` is
+  correctly sized at 2000x1250 and correctly framed with even padding, but its top third is the
+  video thumbnail cropped by the app itself into a partial face plus a black band, which reads
+  awkwardly as a store asset. Faithful to the product, so not a defect; worth recomposing before
+  the next store submission.
+- **Pushing a workflow file needs the `workflow` OAuth scope.** On 2026-08-11 `git push` was
+  rejected with "refusing to allow an OAuth App to create or update workflow
+  `.github/workflows/ci.yml` without `workflow` scope". The `gh` token carries `repo` but not
+  `workflow`. Two fixes: push over SSH, which is not subject to that restriction and is verified
+  working for this account, or run `gh auth refresh -h github.com -s workflow`. Only bites when a
+  commit touches `.github/workflows/`.
+- **Local environment gotcha, not a repo defect.** `node_modules/@types` can accumulate
+  Finder-duplicated directories (`chai 2`, `node 2`, `react 2`), which make a bare
+  `npx tsc --noEmit` report phantom `TS2688 Cannot find type definition file` errors. Re-running
+  with explicit `--types` exits clean, and CI is unaffected because it runs `npm ci`. Delete the
+  duplicates rather than chasing the errors.
 - **Pre-open-source items** carried from `roadmap.md`: copy polish, extraction refactors, dead
   code audit, `package.json` metadata (`repository`, `homepage`, `bugs`, `keywords`),
   `CONTRIBUTING.md`, and backfilling `CHANGELOG.md`.
