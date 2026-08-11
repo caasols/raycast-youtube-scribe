@@ -102,6 +102,15 @@ Open items only. Verify against the code before acting on any of these.
   store installs. No known fix; Raycast has no concept of a private command.
 - **Two overlapping roadmaps.** `roadmap.md` (pre-open-source checklist) and `docs/roadmap.md`
   (shipped plus future work) should probably be consolidated.
+- **The old `-scribe` name survives in the repo, not in the extension.** The Raycast identity is
+  already correct (`package.json` is `youtube-transcribe`), and the working folder was renamed to
+  `raycast-youtube-transcribe` on 2026-08-11. Still carrying the old name: the git remote
+  (`caasols/raycast-youtube-scribe`), the clone URL, `cd` line, and issues link in `README.md`
+  (lines 20, 21, 130), and `metadata/youtube-scribe-1.png`. These are **correct as of today**,
+  because the GitHub repo really is still named `raycast-youtube-scribe`; rewriting them now
+  would point at a repo that does not exist. Order matters: rename on GitHub first (it
+  auto-redirects the old URL, so nothing breaks in the gap), then update the remote, the three
+  README links, and the screenshot filename in a single pass.
 - **Lint is red repo-wide** from a Prettier version bump, not from any specific change. A
   formatting-only pass would fix it but would bury real diffs; do it as its own commit.
 - **Pre-open-source items** carried from `roadmap.md`: copy polish, extraction refactors, dead
