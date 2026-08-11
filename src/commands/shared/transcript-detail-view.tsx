@@ -24,7 +24,11 @@ import {
 import type { HistoryEntry, ExportFormat } from "../../types";
 import { TranscriptSummaryView } from "../transcript-history/transcript-summary-view";
 import { TranscriptAskView } from "../transcript-history/transcript-ask-view";
-import { getCustomActions, getDefaultAIAction } from "../../lib/preferences";
+import {
+  getCustomActions,
+  getDefaultAIAction,
+  orderAIActions,
+} from "../../lib/preferences";
 import { AiChatsView, hasAiChats } from "../transcript-history/ai-chats-view";
 import { TranscriptCustomActionView } from "../transcript-history/transcript-custom-action-view";
 import { useHydratedEntry } from "../../lib/use-hydrated-entry";
@@ -62,6 +66,9 @@ export function TranscriptDetailView({
       shortcut={{ modifiers: ["cmd", "shift"], key: "s" }}
     />
   );
+  const [firstAIAction, secondAIAction] = orderAIActions(defaultAI).map(
+    (kind) => (kind === "summarize" ? summarizeAction : askAction),
+  );
 
   return (
     <Detail
@@ -73,7 +80,7 @@ export function TranscriptDetailView({
         <ActionPanel>
           {entry.status === "finished" && (
             <>
-              {summarizeAction}
+              {firstAIAction}
               {customActions.map((ca, idx) => (
                 <Action.Push
                   key={`custom-${idx}`}
@@ -88,7 +95,7 @@ export function TranscriptDetailView({
                   }
                 />
               ))}
-              {askAction}
+              {secondAIAction}
               {hasAiChats(entry) && (
                 <Action.Push
                   key="ai-chats"

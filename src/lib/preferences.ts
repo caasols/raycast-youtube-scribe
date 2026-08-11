@@ -64,6 +64,19 @@ export function getDefaultAIAction(): "summarize" | "ask" {
   return preferences.defaultAIAction === "ask" ? "ask" : "summarize";
 }
 
+/**
+ * Order of the two AI actions in an ActionPanel.
+ *
+ * Raycast binds Enter to the first action in the panel, so putting the
+ * preferred action first is what makes the Default AI Action preference take
+ * effect. Kept as a pure function so it is testable without React.
+ */
+export function orderAIActions(
+  defaultAI: "summarize" | "ask",
+): ("summarize" | "ask")[] {
+  return defaultAI === "ask" ? ["ask", "summarize"] : ["summarize", "ask"];
+}
+
 export function getAiResponseLanguage(): string | null {
   const preferences = getPreferenceValues<ExtensionPreferences>();
   const value = preferences.aiResponseLanguage?.trim();

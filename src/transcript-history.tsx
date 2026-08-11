@@ -39,6 +39,7 @@ import {
   getCustomActions,
   getDefaultAIAction,
   getHistorySortOrder,
+  orderAIActions,
 } from "./lib/preferences";
 import {
   AiChatsView,
@@ -277,12 +278,15 @@ export default function Command(
         shortcut={{ modifiers: ["cmd", "shift"], key: "s" }}
       />
     );
+    const [firstAIAction, secondAIAction] = orderAIActions(defaultAI).map(
+      (kind) => (kind === "summarize" ? summarizeAction : askAction),
+    );
 
     return (
       <ActionPanel>
         {entry.status === "finished" ? (
           <>
-            {summarizeAction}
+            {firstAIAction}
             {customActions.map((ca, idx) => (
               <Action.Push
                 key={`custom-${idx}`}
@@ -297,7 +301,7 @@ export default function Command(
                 }
               />
             ))}
-            {askAction}
+            {secondAIAction}
             {hasAiChats(entry) && (
               <Action.Push
                 key="ai-chats"
