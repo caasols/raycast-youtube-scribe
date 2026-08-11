@@ -10,10 +10,14 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
-          node-version: 20
+          # @raycast/api declares engines node >=22.14.0, and local development
+          # runs on 24. Node 20 built fine but npm logged EBADENGINE on every
+          # run, meaning CI was validating a configuration Raycast does not
+          # support and that nobody develops on.
+          node-version: 24
           cache: npm
       - run: npm ci
       - run: npm run lint
