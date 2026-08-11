@@ -197,6 +197,36 @@ describe("transcript job orchestration", () => {
     expect(result.title).toBe("Real Video Title");
   });
 
+  it("collapses concurrent prepares of the same video into one fetch", async () => {
+    // Regression: React invokes the mount effect twice, so prepareTranscriptJob
+    // ran twice for one user action. Both calls awaited loadHistory before
+    // either wrote its pending row, so the persisted in-flight check missed and
+    // each minted its own entry, its own worker launch, and its own yt-dlp run.
+    // The superseded worker launch is what surfaced as "Worker unloaded".
+    deps.loadHistory.mockResolvedValue([]);
+
+    const { prepareTranscriptJob } = await import(
+      "../src/commands/get-youtube-transcript/transcript-job"
+    );
+
+    const url = "https://www.youtube.com/watch?v=abc123def45";
+    const [first, second] = await Promise.all([
+      prepareTranscriptJob(url, "en", deps),
+      prepareTranscriptJob(url, "en", deps),
+    ]);
+
+    // Exactly one pending row reaches history.
+    expect(deps.prependHistory).toHaveBeenCalledTimes(1);
+
+    // Only one caller carries a background task, so only one worker launch and
+    // one yt-dlp process can follow.
+    const tasks = [first.backgroundTask, second.backgroundTask].filter(Boolean);
+    expect(tasks).toHaveLength(1);
+
+    // Both callers describe the same fetch.
+    expect(first.entry.id).toBe(second.entry.id);
+  });
+
   it("executes a prepared background fetch against the existing pending entry", async () => {
     const { prepareTranscriptJob, runPreparedTranscriptJob } = await import(
       "../src/commands/get-youtube-transcript/transcript-job"

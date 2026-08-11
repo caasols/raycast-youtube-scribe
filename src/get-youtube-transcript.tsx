@@ -13,7 +13,7 @@ import {
   showToast,
 } from "@raycast/api";
 import { FormValidation, useForm } from "@raycast/utils";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   hydrateEntry,
   loadHistory,
@@ -165,7 +165,14 @@ function launchAutoSummarize(entry: HistoryEntry): void {
 
 export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
   const [isLoading, setIsLoading] = useState(false);
-  const [bootstrapped, setBootstrapped] = useState(false);
+  // A ref, not state: React invokes the mount effect twice, and the second
+  // invocation reads the closure from the same commit, where a setState has
+  // not landed yet. Both invocations then passed the guard and each started
+  // its own fetch, minting a duplicate history entry and a duplicate
+  // background worker launch (the superseded launch is what surfaced as
+  // "Background worker did not start / Worker unloaded"). A ref mutates
+  // synchronously, so the second invocation sees the claim.
+  const bootstrappedRef = useRef(false);
   const [uiMode, setUiMode] = useState<UiMode>("detecting");
   const [detailEntry, setDetailEntry] = useState<HistoryEntry | undefined>();
 
@@ -289,8 +296,8 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
 
   useEffect(() => {
     async function maybeRunFromArgs() {
-      if (bootstrapped) return;
-      setBootstrapped(true);
+      if (bootstrappedRef.current) return;
+      bootstrappedRef.current = true;
 
       const retryPayload = await consumeRetryTranscriptIntent({
         getItem: (key) => LocalStorage.getItem<string>(key),
@@ -418,7 +425,7 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
     }
 
     maybeRunFromArgs();
-  }, [bootstrapped, defaults.language, defaults.videoInput, transcriptJobDeps]);
+  }, [defaults.language, defaults.videoInput, transcriptJobDeps]);
 
   if (uiMode !== "manual-form") {
     if (uiMode === "detail" && detailEntry) {

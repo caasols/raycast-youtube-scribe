@@ -213,15 +213,57 @@ async function appendResolutionErrorEntry(
   return entry;
 }
 
+export type PreparedTranscriptJob = {
+  entry: HistoryEntry;
+  fromCache: boolean;
+  backgroundTask?: PreparedTranscriptBackgroundTask;
+};
+
+/**
+ * Prepares in flight in THIS process, keyed by input and language.
+ *
+ * The persisted in-flight check below reads history, so it cannot see a
+ * sibling call that has not written its pending entry yet. Two concurrent
+ * calls for the same video therefore both missed it and each minted its own
+ * entry and its own background task. Claiming the key synchronously, before
+ * the first await, closes that window. Cross-process duplicates are still
+ * caught by the persisted check, since a worker is a separate process.
+ *
+ * Keyed on the raw input rather than the resolved fetchKey, because resolving
+ * is itself async and would reopen the race. An empty input means "resolve
+ * from the focused tab or clipboard", which is a single target at any given
+ * instant, so identical raw inputs in one process mean one intended fetch.
+ */
+const inFlightPrepares = new Map<string, Promise<PreparedTranscriptJob>>();
+
 export async function prepareTranscriptJob(
   videoInput: string,
   language: string,
   deps: TranscriptJobDeps,
-): Promise<{
-  entry: HistoryEntry;
-  fromCache: boolean;
-  backgroundTask?: PreparedTranscriptBackgroundTask;
-}> {
+): Promise<PreparedTranscriptJob> {
+  const claimKey = `${normalizeInput(videoInput)}::${normalizeLanguage(language)}`;
+  const claimed = inFlightPrepares.get(claimKey);
+  if (claimed) {
+    // Hand back the sibling's entry as already in progress, so the caller
+    // takes its cached path and does not launch a second worker.
+    const { entry } = await claimed;
+    return { entry, fromCache: true, backgroundTask: undefined };
+  }
+
+  const run = prepareTranscriptJobUncoordinated(videoInput, language, deps);
+  inFlightPrepares.set(claimKey, run);
+  try {
+    return await run;
+  } finally {
+    inFlightPrepares.delete(claimKey);
+  }
+}
+
+async function prepareTranscriptJobUncoordinated(
+  videoInput: string,
+  language: string,
+  deps: TranscriptJobDeps,
+): Promise<PreparedTranscriptJob> {
   const inputResolution = await resolveYoutubeInput(videoInput, deps);
   const resolvedUrl = inputResolution.url;
   const normalizedLanguage = normalizeLanguage(language);
