@@ -97,9 +97,21 @@ write time so the list can still render duration, word count, and reading time.
 
 Open items only. Verify against the code before acting on any of these.
 
-- **Worker commands are visible in root search and cannot be hidden.** `disabledByDefault: true`
-  was tried and Raycast ignores it for development extensions. Unknown whether it applies to
-  store installs. No known fix; Raycast has no concept of a private command.
+- **Worker commands are visible in root search and cannot be hidden. Worth another look.**
+  Still reproducing as of 2026-08-11, so nothing this year has fixed it incidentally.
+  `disabledByDefault: true` was tried and Raycast ignores it for development extensions. Unknown
+  whether it applies to store installs, and that is the cheapest thing left to test: install the
+  published build rather than running `ray develop`, and see whether the three `no-view` workers
+  disappear from root search. If they do, the whole problem is a development-mode artifact and
+  nothing needs fixing for real users.
+  Ruled out already: the `interval` removal in `cd0efae` changed only scheduled wakeups, not
+  visibility, so it was never going to help here. Worth re-checking whether current Raycast has
+  added anything for this, since the last investigation predates several releases; the previous
+  conclusion was that Raycast has no concept of a private command.
+  If it turns out to be unfixable for store installs too, the fallback is presentation rather
+  than mechanism: give the three workers titles that read as internal (a shared prefix, for
+  instance) so they at least sort together and read as plumbing rather than as three broken-looking
+  commands a user might try to run.
 - **Two overlapping roadmaps.** `roadmap.md` (pre-open-source checklist) and `docs/roadmap.md`
   (shipped plus future work) should probably be consolidated.
 - **The old `-scribe` name survives in the repo, not in the extension.** The Raycast identity is
