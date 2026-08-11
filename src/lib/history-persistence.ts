@@ -91,6 +91,7 @@ function normalizeEntry(
   // Legacy entries (pre-v3) may carry `format` and `output` fields that no
   // longer exist in the HistoryEntry type. Strip them via destructuring.
   const {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     format: _,
     output: legacyOutput,
     ...rest

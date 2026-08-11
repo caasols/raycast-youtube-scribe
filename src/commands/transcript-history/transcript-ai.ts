@@ -1,5 +1,4 @@
 import { materializeOutput } from "../../lib/output";
-import { DEFAULT_SUMMARIZE_PROMPT_TEMPLATE } from "../../lib/prompt-templates";
 import { getAiResponseLanguage } from "../../lib/preferences";
 import type { HistoryEntry } from "../../types";
 
