@@ -80,6 +80,12 @@ async function fetchVideoMetadataWithYtDlp(
     options.ytDlpPath,
     "--skip-download",
     "--dump-single-json",
+    // yt-dlp still runs format selection for a metadata-only dump. When
+    // YouTube's n-challenge cannot be solved (no JS runtime available) no
+    // formats resolve and yt-dlp exits with "Requested format is not
+    // available", which silently cost us channel, thumbnail, duration and
+    // engagement counts on every fetch. Metadata needs no formats at all.
+    "--ignore-no-formats-error",
     "--cookies-from-browser",
     cookieBrowser,
     options.videoUrl,
