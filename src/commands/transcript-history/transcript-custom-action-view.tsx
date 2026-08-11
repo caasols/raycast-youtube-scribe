@@ -1,9 +1,4 @@
-import {
-  Action,
-  ActionPanel,
-  Detail,
-  Icon,
-} from "@raycast/api";
+import { Action, ActionPanel, Detail, Icon } from "@raycast/api";
 import { useAI } from "@raycast/utils";
 import { useEffect, useRef, useState } from "react";
 import type { CachedAiAnswer, HistoryEntry } from "../../types";
@@ -101,7 +96,11 @@ function CachedCustomActionDetail({
             content={cached.answer}
             shortcut={{ modifiers: ["cmd"], key: "c" }}
           />
-          <SaveToFileAction title={entry.title} content={cached.answer} suffix={sanitizeFilename(actionName)} />
+          <SaveToFileAction
+            title={entry.title}
+            content={cached.answer}
+            suffix={sanitizeFilename(actionName)}
+          />
           <Action
             title="Refresh Response"
             icon={Icon.ArrowClockwise}
@@ -178,7 +177,11 @@ export function TranscriptCustomActionView({
       entry={freshEntry}
       actionName={actionName}
       cached={
-        cached ?? { question: actionName, answer: displayContent, createdAt: "" }
+        cached ?? {
+          question: actionName,
+          answer: displayContent,
+          createdAt: "",
+        }
       }
       onRefresh={() => setGenerating("replace")}
       onNew={() => setGenerating("append")}

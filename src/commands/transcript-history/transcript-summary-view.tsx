@@ -39,7 +39,9 @@ function SummaryGenerator({
   const { data, error, isLoading } = useAI(prompt, {
     creativity: "low",
     stream: true,
-    ...(modelValue ? { model: modelValue as unknown as import("@raycast/api").AI.Model } : {}),
+    ...(modelValue
+      ? { model: modelValue as unknown as import("@raycast/api").AI.Model }
+      : {}),
   });
 
   const savedRef = useRef(false);
@@ -132,7 +134,11 @@ function CachedSummaryDetail({
             content={cached.content}
             shortcut={{ modifiers: ["cmd"], key: "c" }}
           />
-          <SaveToFileAction title={entry.title} content={cached.content} suffix="summary" />
+          <SaveToFileAction
+            title={entry.title}
+            content={cached.content}
+            suffix="summary"
+          />
           <Action
             title="Refresh Response"
             icon={Icon.ArrowClockwise}

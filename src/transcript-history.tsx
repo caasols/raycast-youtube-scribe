@@ -35,8 +35,15 @@ import { retryFetch as retryFetchAction } from "./commands/transcript-history/hi
 import { TranscriptSearchView } from "./commands/shared/transcript-search-view";
 import { TranscriptSummaryView } from "./commands/transcript-history/transcript-summary-view";
 import { TranscriptAskView } from "./commands/transcript-history/transcript-ask-view";
-import { getCustomActions, getDefaultAIAction, getHistorySortOrder } from "./lib/preferences";
-import { AiChatsView, hasAiChats } from "./commands/transcript-history/ai-chats-view";
+import {
+  getCustomActions,
+  getDefaultAIAction,
+  getHistorySortOrder,
+} from "./lib/preferences";
+import {
+  AiChatsView,
+  hasAiChats,
+} from "./commands/transcript-history/ai-chats-view";
 import { TranscriptCustomActionView } from "./commands/transcript-history/transcript-custom-action-view";
 
 function fuzzyMatch(text: string, query: string): boolean {
@@ -194,7 +201,9 @@ export default function Command(
       // Then by sort preference
       switch (sortOrder) {
         case "oldest":
-          return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+          return (
+            new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+          );
         case "title-asc":
           return (a.title || a.videoId).localeCompare(b.title || b.videoId);
         case "title-desc":
@@ -202,11 +211,16 @@ export default function Command(
         case "channel": {
           const aCh = a.videoMetadata?.channelName ?? "";
           const bCh = b.videoMetadata?.channelName ?? "";
-          return aCh.localeCompare(bCh) || new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+          return (
+            aCh.localeCompare(bCh) ||
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          );
         }
         case "newest":
         default:
-          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+          return (
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          );
       }
     });
   }, [history, searchText, sortOrder]);
@@ -235,7 +249,9 @@ export default function Command(
   }, [hydrationKey]);
 
   const paneEntry =
-    selectedEntry && paneSegments.id === selectedEntry.id && paneSegments.segments
+    selectedEntry &&
+    paneSegments.id === selectedEntry.id &&
+    paneSegments.segments
       ? { ...selectedEntry, rawSegments: paneSegments.segments }
       : selectedEntry;
 
@@ -263,136 +279,136 @@ export default function Command(
     );
 
     return (
-    <ActionPanel>
-      {entry.status === "finished" ? (
-        <>
-          {summarizeAction}
-          {customActions.map((ca, idx) => (
+      <ActionPanel>
+        {entry.status === "finished" ? (
+          <>
+            {summarizeAction}
+            {customActions.map((ca, idx) => (
+              <Action.Push
+                key={`custom-${idx}`}
+                title={ca.name}
+                icon={Icon.Stars}
+                target={
+                  <TranscriptCustomActionView
+                    entry={entry}
+                    actionName={ca.name}
+                    promptTemplate={ca.prompt}
+                  />
+                }
+              />
+            ))}
+            {askAction}
+            {hasAiChats(entry) && (
+              <Action.Push
+                key="ai-chats"
+                title="View AI Chats"
+                icon={Icon.Stars}
+                target={<AiChatsView entry={entry} />}
+                shortcut={{ modifiers: ["cmd", "shift"], key: "c" }}
+              />
+            )}
             <Action.Push
-              key={`custom-${idx}`}
-              title={ca.name}
-              icon={Icon.Stars}
+              title="View Transcript"
+              icon={Icon.Sidebar}
               target={
-                <TranscriptCustomActionView
+                <TranscriptDetailView
                   entry={entry}
-                  actionName={ca.name}
-                  promptTemplate={ca.prompt}
+                  onRetry={() => retryFetch(entry)}
                 />
               }
             />
-          ))}
-          {askAction}
-          {hasAiChats(entry) && (
             <Action.Push
-              key="ai-chats"
-              title="View AI Chats"
-              icon={Icon.Stars}
-              target={<AiChatsView entry={entry} />}
-              shortcut={{ modifiers: ["cmd", "shift"], key: "c" }}
+              title="Search in Transcript"
+              icon={Icon.MagnifyingGlass}
+              target={<TranscriptSearchView entry={entry} />}
+              shortcut={{ modifiers: ["cmd"], key: "f" }}
             />
-          )}
-          <Action.Push
-            title="View Transcript"
-            icon={Icon.Sidebar}
-            target={
-              <TranscriptDetailView
-                entry={entry}
-                onRetry={() => retryFetch(entry)}
-              />
-            }
-          />
-          <Action.Push
-            title="Search in Transcript"
-            icon={Icon.MagnifyingGlass}
-            target={<TranscriptSearchView entry={entry} />}
-            shortcut={{ modifiers: ["cmd"], key: "f" }}
-          />
-          <CopyTranscriptAction entry={entry} />
-          <CopyRichTextAction entry={entry} />
-          <Action.OpenInBrowser
-            title="Open Video"
-            url={entry.url}
-            shortcut={{ modifiers: ["cmd"], key: "o" }}
-          />
-          <Action
-            title={entry.pinned ? "Unpin" : "Pin"}
-            icon={entry.pinned ? Icon.PinDisabled : Icon.Pin}
-            shortcut={{ modifiers: ["cmd", "shift"], key: "p" }}
-            onAction={() => togglePinEntry(entry)}
-          />
-          <Action
-            title="Remove from History"
-            style={Action.Style.Destructive}
-            icon={Icon.Trash}
-            onAction={() => removeEntry(entry.id)}
-          />
-          <Action
-            title="Clear History"
-            style={Action.Style.Destructive}
-            icon={Icon.Trash}
-            shortcut={{ modifiers: ["cmd", "shift"], key: "backspace" }}
-            onAction={removeAll}
-          />
-        </>
-      ) : entry.status === "error" ? (
-        <>
-          <Action
-            title="Retry Fetch"
-            icon={Icon.ArrowClockwise}
-            onAction={() => retryFetch(entry)}
-          />
-          <Action.CopyToClipboard
-            title="Copy Debug Log"
-            content={entry.debugLog ?? "No debug data"}
-          />
-          <Action.OpenInBrowser
-            title="Open Video"
-            url={entry.url}
-            shortcut={{ modifiers: ["cmd"], key: "o" }}
-          />
-          <Action
-            title="Remove from History"
-            style={Action.Style.Destructive}
-            icon={Icon.Trash}
-            onAction={() => removeEntry(entry.id)}
-          />
-          <Action
-            title="Clear History"
-            style={Action.Style.Destructive}
-            icon={Icon.Trash}
-            shortcut={{ modifiers: ["cmd", "shift"], key: "backspace" }}
-            onAction={removeAll}
-          />
-        </>
-      ) : (
-        <>
-          <Action
-            title="Refresh"
-            icon={Icon.ArrowClockwise}
-            onAction={refresh}
-          />
-          <Action.OpenInBrowser
-            title="Open Video"
-            url={entry.url}
-            shortcut={{ modifiers: ["cmd"], key: "o" }}
-          />
-          <Action
-            title="Remove from History"
-            style={Action.Style.Destructive}
-            icon={Icon.Trash}
-            onAction={() => removeEntry(entry.id)}
-          />
-          <Action
-            title="Clear History"
-            style={Action.Style.Destructive}
-            icon={Icon.Trash}
-            shortcut={{ modifiers: ["cmd", "shift"], key: "backspace" }}
-            onAction={removeAll}
-          />
-        </>
-      )}
-    </ActionPanel>
-  );
+            <CopyTranscriptAction entry={entry} />
+            <CopyRichTextAction entry={entry} />
+            <Action.OpenInBrowser
+              title="Open Video"
+              url={entry.url}
+              shortcut={{ modifiers: ["cmd"], key: "o" }}
+            />
+            <Action
+              title={entry.pinned ? "Unpin" : "Pin"}
+              icon={entry.pinned ? Icon.PinDisabled : Icon.Pin}
+              shortcut={{ modifiers: ["cmd", "shift"], key: "p" }}
+              onAction={() => togglePinEntry(entry)}
+            />
+            <Action
+              title="Remove from History"
+              style={Action.Style.Destructive}
+              icon={Icon.Trash}
+              onAction={() => removeEntry(entry.id)}
+            />
+            <Action
+              title="Clear History"
+              style={Action.Style.Destructive}
+              icon={Icon.Trash}
+              shortcut={{ modifiers: ["cmd", "shift"], key: "backspace" }}
+              onAction={removeAll}
+            />
+          </>
+        ) : entry.status === "error" ? (
+          <>
+            <Action
+              title="Retry Fetch"
+              icon={Icon.ArrowClockwise}
+              onAction={() => retryFetch(entry)}
+            />
+            <Action.CopyToClipboard
+              title="Copy Debug Log"
+              content={entry.debugLog ?? "No debug data"}
+            />
+            <Action.OpenInBrowser
+              title="Open Video"
+              url={entry.url}
+              shortcut={{ modifiers: ["cmd"], key: "o" }}
+            />
+            <Action
+              title="Remove from History"
+              style={Action.Style.Destructive}
+              icon={Icon.Trash}
+              onAction={() => removeEntry(entry.id)}
+            />
+            <Action
+              title="Clear History"
+              style={Action.Style.Destructive}
+              icon={Icon.Trash}
+              shortcut={{ modifiers: ["cmd", "shift"], key: "backspace" }}
+              onAction={removeAll}
+            />
+          </>
+        ) : (
+          <>
+            <Action
+              title="Refresh"
+              icon={Icon.ArrowClockwise}
+              onAction={refresh}
+            />
+            <Action.OpenInBrowser
+              title="Open Video"
+              url={entry.url}
+              shortcut={{ modifiers: ["cmd"], key: "o" }}
+            />
+            <Action
+              title="Remove from History"
+              style={Action.Style.Destructive}
+              icon={Icon.Trash}
+              onAction={() => removeEntry(entry.id)}
+            />
+            <Action
+              title="Clear History"
+              style={Action.Style.Destructive}
+              icon={Icon.Trash}
+              shortcut={{ modifiers: ["cmd", "shift"], key: "backspace" }}
+              onAction={removeAll}
+            />
+          </>
+        )}
+      </ActionPanel>
+    );
   };
 
   const renderItem = (entry: HistoryEntry) => {
@@ -400,41 +416,47 @@ export default function Command(
     const isSelected = entry.id === selectedId;
 
     return (
-    <List.Item
-      key={entry.id}
-      id={entry.id}
-      title={row.title}
-      subtitle={row.subtitle}
-      detail={
-        <List.Item.Detail
-          markdown={
-            // Only the selected row's pane is on screen, so only it is built.
-            isSelected
-              ? buildHistoryDetailMarkdown(paneEntry ?? entry, "text", {
-                  surface: "history-pane",
-                })
-              : ""
-          }
-        />
-      }
-      accessories={[
-        ...(entry.pinned ? [{ icon: Icon.Pin }] : []),
-        ...(entry.backgroundCompletedAt
-          ? [{ tag: { value: "New", color: Color.Blue } }]
-          : []),
-        ...(() => {
-          const chatCount = (entry.aiSummaries?.length ?? 0) + (entry.aiAnswers?.length ?? 0);
-          return chatCount > 0
-            ? [{ text: `${chatCount} chat${chatCount !== 1 ? "s" : ""}`, icon: Icon.Stars }]
-            : [];
-        })(),
-        {
-          icon: statusAccessory(entry).icon,
-          tooltip: statusAccessory(entry).tooltip,
-        },
-      ]}
-      actions={rowActions(entry)}
-    />
+      <List.Item
+        key={entry.id}
+        id={entry.id}
+        title={row.title}
+        subtitle={row.subtitle}
+        detail={
+          <List.Item.Detail
+            markdown={
+              // Only the selected row's pane is on screen, so only it is built.
+              isSelected
+                ? buildHistoryDetailMarkdown(paneEntry ?? entry, "text", {
+                    surface: "history-pane",
+                  })
+                : ""
+            }
+          />
+        }
+        accessories={[
+          ...(entry.pinned ? [{ icon: Icon.Pin }] : []),
+          ...(entry.backgroundCompletedAt
+            ? [{ tag: { value: "New", color: Color.Blue } }]
+            : []),
+          ...(() => {
+            const chatCount =
+              (entry.aiSummaries?.length ?? 0) + (entry.aiAnswers?.length ?? 0);
+            return chatCount > 0
+              ? [
+                  {
+                    text: `${chatCount} chat${chatCount !== 1 ? "s" : ""}`,
+                    icon: Icon.Stars,
+                  },
+                ]
+              : [];
+          })(),
+          {
+            icon: statusAccessory(entry).icon,
+            tooltip: statusAccessory(entry).tooltip,
+          },
+        ]}
+        actions={rowActions(entry)}
+      />
     );
   };
 
@@ -466,41 +488,47 @@ export default function Command(
           title="No history yet"
           description="Run 'Transcribe YouTube Video' first. This command shows all transcripts fetched previously."
         />
-      ) : (() => {
-        const pinnedItems = filteredHistory.filter((e) => e.pinned);
-        const unpinnedItems = filteredHistory.filter((e) => !e.pinned);
+      ) : (
+        (() => {
+          const pinnedItems = filteredHistory.filter((e) => e.pinned);
+          const unpinnedItems = filteredHistory.filter((e) => !e.pinned);
 
-        // Group by channel when sorted by channel
-        if (sortOrder === "channel" && pinnedItems.length === 0) {
-          const groups = new Map<string, HistoryEntry[]>();
-          for (const entry of filteredHistory) {
-            const channel = entry.videoMetadata?.channelName ?? "Unknown";
-            const existing = groups.get(channel) ?? [];
-            existing.push(entry);
-            groups.set(channel, existing);
+          // Group by channel when sorted by channel
+          if (sortOrder === "channel" && pinnedItems.length === 0) {
+            const groups = new Map<string, HistoryEntry[]>();
+            for (const entry of filteredHistory) {
+              const channel = entry.videoMetadata?.channelName ?? "Unknown";
+              const existing = groups.get(channel) ?? [];
+              existing.push(entry);
+              groups.set(channel, existing);
+            }
+            return Array.from(groups.entries()).map(([channel, entries]) => (
+              <List.Section
+                key={channel}
+                title={channel}
+                subtitle={`${entries.length} transcript${entries.length !== 1 ? "s" : ""}`}
+              >
+                {entries.map(renderItem)}
+              </List.Section>
+            ));
           }
-          return Array.from(groups.entries()).map(([channel, entries]) => (
-            <List.Section key={channel} title={channel} subtitle={`${entries.length} transcript${entries.length !== 1 ? "s" : ""}`}>
-              {entries.map(renderItem)}
-            </List.Section>
-          ));
-        }
 
-        if (pinnedItems.length === 0) {
-          return filteredHistory.map(renderItem);
-        }
+          if (pinnedItems.length === 0) {
+            return filteredHistory.map(renderItem);
+          }
 
-        return (
-          <>
-            <List.Section title="Pinned">
-              {pinnedItems.map(renderItem)}
-            </List.Section>
-            <List.Section title="Recent">
-              {unpinnedItems.map(renderItem)}
-            </List.Section>
-          </>
-        );
-      })()}
+          return (
+            <>
+              <List.Section title="Pinned">
+                {pinnedItems.map(renderItem)}
+              </List.Section>
+              <List.Section title="Recent">
+                {unpinnedItems.map(renderItem)}
+              </List.Section>
+            </>
+          );
+        })()
+      )}
     </List>
   );
 }

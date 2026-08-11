@@ -1,9 +1,4 @@
-import {
-  LaunchProps,
-  LaunchType,
-  Toast,
-  launchCommand,
-} from "@raycast/api";
+import { LaunchProps, LaunchType, Toast, launchCommand } from "@raycast/api";
 // Toast imported for Toast.Style enum used by safeShowToast options
 import { loadHistory, patchHistoryEntry } from "./history-store";
 import {
@@ -52,7 +47,9 @@ export default async function Command(
 
     // Auto-summarize if preference is enabled
     if (getAutoSummarize() && !entry.aiSummaries?.length) {
-      await patchHistoryEntry(task.entryId, { aiSummarizationStatus: "generating" });
+      await patchHistoryEntry(task.entryId, {
+        aiSummarizationStatus: "generating",
+      });
       void launchCommand({
         ownerOrAuthorName: "caasols",
         extensionName: "youtube-transcribe",

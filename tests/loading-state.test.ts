@@ -10,8 +10,7 @@ describe("getLoadingStateText", () => {
       title: "Detecting Video",
       progressLabel: "Step 1 of 3",
       progressBar: "▒▒▒▒░░░░░░░░░░░░",
-      description:
-        "Checking clipboard and browser tab for a YouTube video.",
+      description: "Checking clipboard and browser tab for a YouTube video.",
     });
   });
 

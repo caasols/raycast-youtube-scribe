@@ -1,5 +1,9 @@
 import { materializeDisplayOutput } from "./output";
-import { countWords, formatCompactNumber, readingTimeLabel } from "./text-utils";
+import {
+  countWords,
+  formatCompactNumber,
+  readingTimeLabel,
+} from "./text-utils";
 import type {
   HistoryEntry,
   OutputFormat,

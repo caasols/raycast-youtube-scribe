@@ -1,9 +1,4 @@
-import {
-  LaunchProps,
-  LaunchType,
-  Toast,
-  launchCommand,
-} from "@raycast/api";
+import { LaunchProps, LaunchType, Toast, launchCommand } from "@raycast/api";
 import { loadHistory, patchHistoryEntry } from "./history-store";
 import { runPreparedTranscriptJob } from "./commands/get-youtube-transcript/transcript-job";
 import { fetchTranscriptWithYtDlp, findYtDlp } from "./lib/ytdlp";

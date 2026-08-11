@@ -12,12 +12,20 @@ import { BROWSER_COOKIE_MAP } from "./browser";
 import { buildJsonOutput, buildTextOutput } from "./output";
 import { normalizeLanguage } from "./youtube";
 import { parseVtt } from "./vtt";
-import { TranscriptDiagnostics, TranscriptResult, VideoMetadata } from "../types";
+import {
+  TranscriptDiagnostics,
+  TranscriptResult,
+  VideoMetadata,
+} from "../types";
 import {
   normalizeVideoMetadata,
   YtDlpVideoMetadataPayload,
 } from "./ytdlp-metadata";
-import { runYtDlpCommand, runYtDlpJsonCommand, runYtDlpPlaylistCommand } from "./ytdlp-command";
+import {
+  runYtDlpCommand,
+  runYtDlpJsonCommand,
+  runYtDlpPlaylistCommand,
+} from "./ytdlp-command";
 
 const YT_DLP_CANDIDATES = [
   "/opt/homebrew/bin/yt-dlp",

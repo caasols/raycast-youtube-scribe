@@ -94,7 +94,8 @@ export function extractPlaylistId(input?: string): string | null {
   try {
     const url = new URL(value);
     const hostname = url.hostname.toLowerCase();
-    if (hostname !== "youtube.com" && hostname !== "www.youtube.com") return null;
+    if (hostname !== "youtube.com" && hostname !== "www.youtube.com")
+      return null;
 
     const listParam = url.searchParams.get("list");
     if (listParam && listParam.length > 0) return listParam;
@@ -105,7 +106,9 @@ export function extractPlaylistId(input?: string): string | null {
   return null;
 }
 
-export function detectYoutubeInputKind(input?: string): YoutubeInputKind | null {
+export function detectYoutubeInputKind(
+  input?: string,
+): YoutubeInputKind | null {
   if (extractPlaylistId(input)) return "playlist";
   return detectYoutubeContentKind(input);
 }

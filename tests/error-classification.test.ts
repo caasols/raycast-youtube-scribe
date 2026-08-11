@@ -56,9 +56,7 @@ describe("classifyTranscriptError", () => {
   });
 
   it("classifies timeout errors", () => {
-    expect(classifyTranscriptError("timed out while fetching")).toBe(
-      "timeout",
-    );
+    expect(classifyTranscriptError("timed out while fetching")).toBe("timeout");
   });
 
   it("returns unknown for unrecognized errors", () => {
@@ -108,7 +106,9 @@ describe("formatTranscriptError", () => {
   });
 
   it("formats unknown errors with fallback message", () => {
-    expect(formatTranscriptError("unknown")).toBe("Failed to fetch transcript.");
+    expect(formatTranscriptError("unknown")).toBe(
+      "Failed to fetch transcript.",
+    );
   });
 });
 

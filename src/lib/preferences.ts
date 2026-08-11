@@ -1,7 +1,8 @@
 import { getPreferenceValues } from "@raycast/api";
 import { DEFAULT_SUMMARIZE_PROMPT_TEMPLATE } from "./prompt-templates";
 
-export type HistorySortOrder = "newest" | "oldest" | "title-asc" | "title-desc" | "channel";
+export type HistorySortOrder =
+  "newest" | "oldest" | "title-asc" | "title-desc" | "channel";
 
 type ExtensionPreferences = {
   autoSummarize?: boolean;
@@ -78,7 +79,13 @@ export function getAiChatMaxAgeDays(): number | null {
 export function getHistorySortOrder(): HistorySortOrder {
   const preferences = getPreferenceValues<ExtensionPreferences>();
   const value = preferences.historySortOrder;
-  const valid: HistorySortOrder[] = ["newest", "oldest", "title-asc", "title-desc", "channel"];
+  const valid: HistorySortOrder[] = [
+    "newest",
+    "oldest",
+    "title-asc",
+    "title-desc",
+    "channel",
+  ];
   return valid.includes(value as HistorySortOrder)
     ? (value as HistorySortOrder)
     : "newest";

@@ -70,7 +70,8 @@ describe("buildHistoryDetailMarkdown", () => {
     ]);
     expect(viewModel.body).toEqual({
       kind: "transcript",
-      markdown: "[**00:00**](https://www.youtube.com/watch?v=abc&t=0)\nhello world",
+      markdown:
+        "[**00:00**](https://www.youtube.com/watch?v=abc&t=0)\nhello world",
     });
   });
 
@@ -98,13 +99,13 @@ describe("buildHistoryDetailMarkdown", () => {
       "![](https://img.youtube.com/vi/abc/mqdefault.jpg)",
     );
     expect(markdown).toContain("# Video");
-    expect(markdown).toContain(
-      "# Video\n\n---\n\n`Ready` `Rick Astley`",
-    );
+    expect(markdown).toContain("# Video\n\n---\n\n`Ready` `Rick Astley`");
     // Verify order: title, then pills, then thumbnail
     const titleIdx = markdown.indexOf("# Video");
     const pillsIdx = markdown.indexOf("`Ready`");
-    const thumbIdx = markdown.indexOf("![](https://img.youtube.com/vi/abc/mqdefault.jpg)");
+    const thumbIdx = markdown.indexOf(
+      "![](https://img.youtube.com/vi/abc/mqdefault.jpg)",
+    );
     const bodyIdx = markdown.indexOf("hello world");
     const tagsIdx = markdown.indexOf("`music`");
     expect(titleIdx).toBeLessThan(pillsIdx);
@@ -167,10 +168,15 @@ describe("buildHistoryDetailMarkdown", () => {
         at: "2026-03-16T17:15:56.476Z",
         phase: "transcript-error",
         source: "focused-tab",
-        friendlyError: "yt-dlp timed out while fetching captions. Please retry.",
+        friendlyError:
+          "yt-dlp timed out while fetching captions. Please retry.",
         steps: [
           { step: "focused-tab", ok: true },
-          { step: "transcript-fetch", ok: false, details: { error: "timed out" } },
+          {
+            step: "transcript-fetch",
+            ok: false,
+            details: { error: "timed out" },
+          },
         ],
       }),
     };
@@ -224,7 +230,9 @@ describe("buildHistoryDetailMarkdown", () => {
     const markdown = buildHistoryDetailMarkdown(entry, "text");
 
     expect(markdown).toContain("## What Happened");
-    expect(markdown).toContain("yt-dlp timed out while fetching captions. Please retry.");
+    expect(markdown).toContain(
+      "yt-dlp timed out while fetching captions. Please retry.",
+    );
     expect(markdown).toContain("## What We Tried");
     expect(markdown).toContain("## What You Can Do Next");
     expect(markdown).toContain("Retry the fetch in a few seconds.");
@@ -270,7 +278,9 @@ describe("buildHistoryDetailMarkdown", () => {
     expect(viewModel.primaryPills).toEqual(
       expect.arrayContaining([expect.stringMatching(/^Saved on /)]),
     );
-    expect(viewModel.primaryPills.some((p) => p.startsWith("Published on "))).toBe(false);
+    expect(
+      viewModel.primaryPills.some((p) => p.startsWith("Published on ")),
+    ).toBe(false);
   });
 
   it("shows channel name even when it matches the handle format", () => {

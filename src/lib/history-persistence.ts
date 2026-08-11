@@ -90,7 +90,11 @@ function normalizeEntry(
 ): HistoryEntry {
   // Legacy entries (pre-v3) may carry `format` and `output` fields that no
   // longer exist in the HistoryEntry type. Strip them via destructuring.
-  const { format: _, output: legacyOutput, ...rest } = entry as HistoryEntry & {
+  const {
+    format: _,
+    output: legacyOutput,
+    ...rest
+  } = entry as HistoryEntry & {
     format?: string;
     output?: string;
   };
@@ -198,10 +202,14 @@ export function deserializeHistory(
         ? parsed.entries
         : [];
     // A bare array predates the version envelope entirely.
-    const version = isEnvelope ? ((parsed as HistoryStoreEnvelope).version ?? 0) : 0;
+    const version = isEnvelope
+      ? ((parsed as HistoryStoreEnvelope).version ?? 0)
+      : 0;
 
     const normalized = repairStaleFetchingEntries(
-      rawEntries.map((entry) => normalizeEntry(entry, policy?.aiChatMaxAgeDays)),
+      rawEntries.map((entry) =>
+        normalizeEntry(entry, policy?.aiChatMaxAgeDays),
+      ),
     );
 
     return { entries: pruneHistory(normalized, policy), version };

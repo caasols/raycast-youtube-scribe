@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { serializeHistory, DEFAULT_HISTORY_ENTRY_LIMIT } from "../src/lib/history-persistence";
+import {
+  serializeHistory,
+  DEFAULT_HISTORY_ENTRY_LIMIT,
+} from "../src/lib/history-persistence";
 import type { RetentionPolicy } from "../src/lib/history-persistence";
 import type { HistoryEntry } from "../src/types";
 
@@ -44,7 +47,10 @@ describe("retention policy", () => {
   it("applies both maxEntries and maxAgeDays", () => {
     const now = new Date();
     const entries = Array.from({ length: 10 }, (_, i) =>
-      makeEntry(`e${i}`, new Date(now.getTime() - i * 24 * 60 * 60 * 1000).toISOString()),
+      makeEntry(
+        `e${i}`,
+        new Date(now.getTime() - i * 24 * 60 * 60 * 1000).toISOString(),
+      ),
     );
     const policy: RetentionPolicy = { maxEntries: 5, maxAgeDays: 3 };
     const serialized = serializeHistory(entries, policy);

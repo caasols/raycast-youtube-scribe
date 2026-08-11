@@ -84,12 +84,16 @@ export function buildMarkdownOutput(entry: HistoryEntry): string {
   lines.push("");
 
   const meta: string[] = [];
-  if (entry.videoMetadata?.channelName) meta.push(`**Channel:** ${entry.videoMetadata.channelName}`);
+  if (entry.videoMetadata?.channelName)
+    meta.push(`**Channel:** ${entry.videoMetadata.channelName}`);
   meta.push(`**URL:** ${entry.url}`);
-  if (entry.createdAt) meta.push(`**Saved:** ${new Date(entry.createdAt).toLocaleDateString()}`);
-  if (entry.videoMetadata?.durationText) meta.push(`**Duration:** ${entry.videoMetadata.durationText}`);
+  if (entry.createdAt)
+    meta.push(`**Saved:** ${new Date(entry.createdAt).toLocaleDateString()}`);
+  if (entry.videoMetadata?.durationText)
+    meta.push(`**Duration:** ${entry.videoMetadata.durationText}`);
   if (entry.language) meta.push(`**Language:** ${entry.language}`);
-  if (entry.videoMetadata?.tags?.length) meta.push(`**Tags:** ${entry.videoMetadata.tags.join(", ")}`);
+  if (entry.videoMetadata?.tags?.length)
+    meta.push(`**Tags:** ${entry.videoMetadata.tags.join(", ")}`);
   lines.push(meta.join("  \n"));
   lines.push("");
   lines.push("---");

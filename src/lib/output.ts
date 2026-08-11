@@ -61,15 +61,24 @@ export function buildRichTextHtml(entry: HistoryEntry): string {
   parts.push(`<h1>${escapeHtml(title)}</h1>`);
 
   const meta: string[] = [];
-  if (entry.videoMetadata?.channelName) meta.push(`<b>Channel:</b> ${escapeHtml(entry.videoMetadata.channelName)}`);
-  meta.push(`<b>URL:</b> <a href="${escapeHtml(entry.url)}">${escapeHtml(entry.url)}</a>`);
-  if (entry.videoMetadata?.durationText) meta.push(`<b>Duration:</b> ${escapeHtml(entry.videoMetadata.durationText)}`);
-  if (entry.language) meta.push(`<b>Language:</b> ${escapeHtml(entry.language)}`);
+  if (entry.videoMetadata?.channelName)
+    meta.push(`<b>Channel:</b> ${escapeHtml(entry.videoMetadata.channelName)}`);
+  meta.push(
+    `<b>URL:</b> <a href="${escapeHtml(entry.url)}">${escapeHtml(entry.url)}</a>`,
+  );
+  if (entry.videoMetadata?.durationText)
+    meta.push(
+      `<b>Duration:</b> ${escapeHtml(entry.videoMetadata.durationText)}`,
+    );
+  if (entry.language)
+    meta.push(`<b>Language:</b> ${escapeHtml(entry.language)}`);
   if (meta.length) parts.push(`<p>${meta.join("<br>")}</p>`);
 
   if (entry.aiSummaries?.[0]) {
     parts.push(`<h2>Summary</h2>`);
-    parts.push(`<p>${escapeHtml(entry.aiSummaries[0].content).replace(/\n/g, "<br>")}</p>`);
+    parts.push(
+      `<p>${escapeHtml(entry.aiSummaries[0].content).replace(/\n/g, "<br>")}</p>`,
+    );
   }
 
   parts.push(`<h2>Transcript</h2>`);

@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { ExportFormat, HistoryEntry, TranscriptSegment } from "../src/types";
+import type {
+  ExportFormat,
+  HistoryEntry,
+  TranscriptSegment,
+} from "../src/types";
 
 vi.mock("node:fs/promises", () => ({
   writeFile: vi.fn().mockResolvedValue(undefined),

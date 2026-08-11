@@ -12,26 +12,26 @@ describe("classifyContentKind", () => {
   });
 
   it("classifies is_upcoming as premiere", () => {
-    expect(
-      classifyContentKind("video", { liveStatus: "is_upcoming" }),
-    ).toBe("premiere");
+    expect(classifyContentKind("video", { liveStatus: "is_upcoming" })).toBe(
+      "premiere",
+    );
   });
 
   it("classifies is_live as live", () => {
-    expect(
-      classifyContentKind("video", { liveStatus: "is_live" }),
-    ).toBe("live");
+    expect(classifyContentKind("video", { liveStatus: "is_live" })).toBe(
+      "live",
+    );
   });
 
   it("classifies was_live as live", () => {
-    expect(
-      classifyContentKind("video", { liveStatus: "was_live" }),
-    ).toBe("live");
+    expect(classifyContentKind("video", { liveStatus: "was_live" })).toBe(
+      "live",
+    );
   });
 
   it("returns urlKind for unknown liveStatus", () => {
-    expect(
-      classifyContentKind("short", { liveStatus: "not_live" }),
-    ).toBe("short");
+    expect(classifyContentKind("short", { liveStatus: "not_live" })).toBe(
+      "short",
+    );
   });
 });

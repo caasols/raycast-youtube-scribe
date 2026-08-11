@@ -61,7 +61,8 @@ function buildChatItems(entry: HistoryEntry): AiChatItem[] {
     const children = followUps.get(a.createdAt);
     if (children) {
       for (const child of children.sort(
-        (x, y) => new Date(x.createdAt).getTime() - new Date(y.createdAt).getTime(),
+        (x, y) =>
+          new Date(x.createdAt).getTime() - new Date(y.createdAt).getTime(),
       )) {
         items.push({ kind: "answer", data: child });
       }
@@ -73,7 +74,10 @@ function buildChatItems(entry: HistoryEntry): AiChatItem[] {
   const threadOrder = new Map<string, number>();
   let orderIdx = 0;
   for (const item of items) {
-    if (item.kind === "summary" || !(item.data as CachedAiAnswer).parentCreatedAt) {
+    if (
+      item.kind === "summary" ||
+      !(item.data as CachedAiAnswer).parentCreatedAt
+    ) {
       orderIdx++;
     }
     threadOrder.set(item.data.createdAt, orderIdx);
@@ -92,7 +96,10 @@ function buildChatItems(entry: HistoryEntry): AiChatItem[] {
     if (aThread !== bThread) return aThread - bThread;
 
     // Same thread: sort by creation time (ascending) to show parent before children
-    return new Date(a.data.createdAt).getTime() - new Date(b.data.createdAt).getTime();
+    return (
+      new Date(a.data.createdAt).getTime() -
+      new Date(b.data.createdAt).getTime()
+    );
   });
 
   return items;
@@ -129,7 +136,9 @@ function FollowUpGenerator({
   const { data, error, isLoading } = useAI(prompt, {
     creativity: "low",
     stream: true,
-    ...(modelValue ? { model: modelValue as unknown as import("@raycast/api").AI.Model } : {}),
+    ...(modelValue
+      ? { model: modelValue as unknown as import("@raycast/api").AI.Model }
+      : {}),
   });
 
   const savedRef = useRef(false);
@@ -137,7 +146,14 @@ function FollowUpGenerator({
   useEffect(() => {
     if (!isLoading && data && !error && !savedRef.current) {
       savedRef.current = true;
-      saveAnswer(entry.id, entry.aiAnswers, followUpQuestion, data, "append", parentCreatedAt);
+      saveAnswer(
+        entry.id,
+        entry.aiAnswers,
+        followUpQuestion,
+        data,
+        "append",
+        parentCreatedAt,
+      );
     }
   }, [isLoading, data, error]);
 
@@ -228,7 +244,10 @@ export function AiChatDetail({
   const title = chatItemTitle(item);
   const content = chatItemContent(item);
   const words = countWords(content);
-  const statsLine = words > 0 ? `\`${words.toLocaleString()} words\` \`${readingTimeLabel(words)}\`\n\n` : "";
+  const statsLine =
+    words > 0
+      ? `\`${words.toLocaleString()} words\` \`${readingTimeLabel(words)}\`\n\n`
+      : "";
   const markdown = `# ${title}\n\n${statsLine}${content}`;
 
   return (
@@ -267,8 +286,7 @@ export function AiChatDetail({
             icon={Icon.SaveDocument}
             onAction={async () => {
               try {
-                const suffix =
-                  item.kind === "summary" ? "summary" : "answer";
+                const suffix = item.kind === "summary" ? "summary" : "answer";
                 const filename = `${sanitizeFilename(entry.title)}-${suffix}.md`;
                 const path = await saveToDownloads(filename, content);
                 await showToast({
@@ -295,8 +313,7 @@ export function AiChatDetail({
 
 export function hasAiChats(entry: HistoryEntry): boolean {
   return (
-    (entry.aiSummaries?.length ?? 0) > 0 ||
-    (entry.aiAnswers?.length ?? 0) > 0
+    (entry.aiSummaries?.length ?? 0) > 0 || (entry.aiAnswers?.length ?? 0) > 0
   );
 }
 
@@ -315,7 +332,9 @@ export function AiChatsView({ entry }: { entry: HistoryEntry }) {
     const lines: string[] = [`# AI Chats: ${freshEntry.title}\n`];
     for (const item of items) {
       const heading =
-        item.kind === "summary" ? "## Summary" : `## Q: ${(item.data as CachedAiAnswer).question}`;
+        item.kind === "summary"
+          ? "## Summary"
+          : `## Q: ${(item.data as CachedAiAnswer).question}`;
       const content = chatItemContent(item);
       const date = new Date(item.data.createdAt).toLocaleString();
       lines.push(`${heading}\n\n${content}\n\n*Generated: ${date}*\n\n---\n`);
@@ -328,7 +347,11 @@ export function AiChatsView({ entry }: { entry: HistoryEntry }) {
       const markdown = buildExportMarkdown();
       const filename = `${sanitizeFilename(freshEntry.title)}-ai-chats.md`;
       const path = await saveToDownloads(filename, markdown);
-      await showToast({ style: Toast.Style.Success, title: "Exported", message: path });
+      await showToast({
+        style: Toast.Style.Success,
+        title: "Exported",
+        message: path,
+      });
     } catch (err) {
       await showToast({
         style: Toast.Style.Failure,
@@ -356,13 +379,20 @@ export function AiChatsView({ entry }: { entry: HistoryEntry }) {
     if (
       await confirmAlert({
         title: "Clear All AI Chats",
-        message: "This will delete all summaries and answers for this transcript.",
-        primaryAction: { title: "Clear All", style: Alert.ActionStyle.Destructive },
+        message:
+          "This will delete all summaries and answers for this transcript.",
+        primaryAction: {
+          title: "Clear All",
+          style: Alert.ActionStyle.Destructive,
+        },
       })
     ) {
       await clearAllAiChats(entry.id);
       await reloadEntry();
-      await showToast({ style: Toast.Style.Success, title: "All AI chats cleared" });
+      await showToast({
+        style: Toast.Style.Success,
+        title: "All AI chats cleared",
+      });
     }
   }
 
@@ -371,7 +401,10 @@ export function AiChatsView({ entry }: { entry: HistoryEntry }) {
       await confirmAlert({
         title: "Delete AI Chat",
         message: `Are you sure you want to delete this ${item.kind}?`,
-        primaryAction: { title: "Delete", style: Alert.ActionStyle.Destructive },
+        primaryAction: {
+          title: "Delete",
+          style: Alert.ActionStyle.Destructive,
+        },
       })
     ) {
       if (item.kind === "summary") {
@@ -387,7 +420,9 @@ export function AiChatsView({ entry }: { entry: HistoryEntry }) {
   return (
     <List navigationTitle="AI Chats">
       {items.map((item, idx) => {
-        const isFollowUp = item.kind === "answer" && Boolean((item.data as CachedAiAnswer).parentCreatedAt);
+        const isFollowUp =
+          item.kind === "answer" &&
+          Boolean((item.data as CachedAiAnswer).parentCreatedAt);
         const title = chatItemTitle(item);
         const displayTitle = isFollowUp ? `↳ ${title}` : title;
         const date = new Date(item.data.createdAt);
@@ -401,7 +436,13 @@ export function AiChatsView({ entry }: { entry: HistoryEntry }) {
         return (
           <List.Item
             key={`${item.kind}-${idx}`}
-            icon={isFollowUp ? Icon.ArrowRight : item.kind === "summary" ? Icon.BulletPoints : Icon.QuestionMarkCircle}
+            icon={
+              isFollowUp
+                ? Icon.ArrowRight
+                : item.kind === "summary"
+                  ? Icon.BulletPoints
+                  : Icon.QuestionMarkCircle
+            }
             title={displayTitle}
             accessories={[
               ...(item.data.pinned ? [{ icon: Icon.Pin }] : []),
@@ -420,7 +461,12 @@ export function AiChatsView({ entry }: { entry: HistoryEntry }) {
                     title="Ask Again"
                     icon={Icon.ArrowClockwise}
                     shortcut={{ modifiers: ["cmd", "shift"], key: "r" }}
-                    target={<TranscriptAskView entry={freshEntry} initialQuestion={(item.data as CachedAiAnswer).question} />}
+                    target={
+                      <TranscriptAskView
+                        entry={freshEntry}
+                        initialQuestion={(item.data as CachedAiAnswer).question}
+                      />
+                    }
                   />
                 )}
                 {item.kind === "answer" && (
@@ -431,7 +477,9 @@ export function AiChatsView({ entry }: { entry: HistoryEntry }) {
                     target={
                       <FollowUpAskView
                         entry={freshEntry}
-                        previousQuestion={(item.data as CachedAiAnswer).question}
+                        previousQuestion={
+                          (item.data as CachedAiAnswer).question
+                        }
                         previousAnswer={(item.data as CachedAiAnswer).answer}
                         parentCreatedAt={item.data.createdAt}
                       />

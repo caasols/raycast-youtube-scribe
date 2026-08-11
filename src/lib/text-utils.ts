@@ -22,11 +22,15 @@ export function formatCompactNumber(n: number): string {
   if (n < 1000) return n.toString();
   if (n < 1_000_000) {
     const k = n / 1000;
-    return k >= 10 ? `${Math.round(k)}K` : `${k.toFixed(1).replace(/\.0$/, "")}K`;
+    return k >= 10
+      ? `${Math.round(k)}K`
+      : `${k.toFixed(1).replace(/\.0$/, "")}K`;
   }
   if (n < 1_000_000_000) {
     const m = n / 1_000_000;
-    return m >= 10 ? `${Math.round(m)}M` : `${m.toFixed(1).replace(/\.0$/, "")}M`;
+    return m >= 10
+      ? `${Math.round(m)}M`
+      : `${m.toFixed(1).replace(/\.0$/, "")}M`;
   }
   const b = n / 1_000_000_000;
   return b >= 10 ? `${Math.round(b)}B` : `${b.toFixed(1).replace(/\.0$/, "")}B`;

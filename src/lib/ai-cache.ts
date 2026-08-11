@@ -1,9 +1,9 @@
-import type {
-  HistoryEntry,
-  CachedAiSummary,
-  CachedAiAnswer,
-} from "../types";
-import { loadHistory, loadHydratedEntry, patchHistoryEntry } from "../history-store";
+import type { HistoryEntry, CachedAiSummary, CachedAiAnswer } from "../types";
+import {
+  loadHistory,
+  loadHydratedEntry,
+  patchHistoryEntry,
+} from "../history-store";
 
 /**
  * Load the latest version of an entry from LocalStorage, transcript body included.

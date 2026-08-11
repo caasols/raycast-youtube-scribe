@@ -1,10 +1,4 @@
-import {
-  Action,
-  ActionPanel,
-  Detail,
-  Icon,
-  List,
-} from "@raycast/api";
+import { Action, ActionPanel, Detail, Icon, List } from "@raycast/api";
 import { useAI } from "@raycast/utils";
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
 import type { CachedAiAnswer, HistoryEntry } from "../../types";
@@ -57,7 +51,9 @@ function AnswerGenerator({
   const { data, error, isLoading } = useAI(prompt, {
     creativity: "low",
     stream: true,
-    ...(modelValue ? { model: modelValue as unknown as import("@raycast/api").AI.Model } : {}),
+    ...(modelValue
+      ? { model: modelValue as unknown as import("@raycast/api").AI.Model }
+      : {}),
   });
 
   const savedRef = useRef(false);
@@ -66,8 +62,8 @@ function AnswerGenerator({
     if (!isLoading && data && !error && !savedRef.current) {
       savedRef.current = true;
       const saveMode = mode === "initial" ? "append" : mode;
-      saveAnswer(entry.id, entry.aiAnswers, question, data, saveMode).then(
-        () => onComplete(data),
+      saveAnswer(entry.id, entry.aiAnswers, question, data, saveMode).then(() =>
+        onComplete(data),
       );
     }
   }, [isLoading, data, error, entry.id]);
@@ -85,10 +81,7 @@ function AnswerGenerator({
       markdown={markdown}
       actions={
         <ActionPanel>
-          <Action.CopyToClipboard
-            title="Copy Response"
-            content={data || ""}
-          />
+          <Action.CopyToClipboard title="Copy Response" content={data || ""} />
           <Action.CopyToClipboard title="Copy Prompt" content={prompt} />
           <Action.Push
             title="Summarize Transcript with AI"
@@ -128,7 +121,11 @@ function CachedAnswerDetail({
             title="Copy Response"
             content={cached.answer}
           />
-          <SaveToFileAction title={entry.title} content={cached.answer} suffix="answer" />
+          <SaveToFileAction
+            title={entry.title}
+            content={cached.answer}
+            suffix="answer"
+          />
           <Action
             title="Refresh Response"
             icon={Icon.ArrowClockwise}

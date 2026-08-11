@@ -212,7 +212,8 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
           await showToast({
             style: Toast.Style.Failure,
             title: "A transcript is already being fetched",
-            message: "Wait for the current fetch to finish before starting another.",
+            message:
+              "Wait for the current fetch to finish before starting another.",
           });
           setIsLoading(false);
           return;
@@ -228,9 +229,10 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
           launchPlaylistWorker(result.backgroundTask);
           const queued = result.entries.length;
           const skipped = result.skippedCount;
-          const msg = skipped > 0
-            ? `Queued ${queued} videos (${skipped} already cached)`
-            : `Queued ${queued} videos`;
+          const msg =
+            skipped > 0
+              ? `Queued ${queued} videos (${skipped} already cached)`
+              : `Queued ${queued} videos`;
           await showToast({
             style: Toast.Style.Success,
             title: msg,
@@ -339,7 +341,8 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
           await showToast({
             style: Toast.Style.Failure,
             title: "A transcript is already being fetched",
-            message: "Wait for the current fetch to finish before starting another.",
+            message:
+              "Wait for the current fetch to finish before starting another.",
           });
           setUiMode("manual-form");
           setIsLoading(false);
@@ -358,9 +361,10 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
           launchPlaylistWorker(result.backgroundTask);
           const queued = result.entries.length;
           const skipped = result.skippedCount;
-          const msg = skipped > 0
-            ? `Queued ${queued} videos (${skipped} already cached)`
-            : `Queued ${queued} videos`;
+          const msg =
+            skipped > 0
+              ? `Queued ${queued} videos (${skipped} already cached)`
+              : `Queued ${queued} videos`;
           await showToast({
             style: Toast.Style.Success,
             title: msg,

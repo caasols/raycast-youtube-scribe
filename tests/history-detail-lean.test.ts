@@ -45,7 +45,11 @@ describe("detail pills on a lean (unhydrated) entry", () => {
 
   it("prefers stored stats over recomputing from an attached body", () => {
     const model = buildHistoryDetailViewModel(
-      entry({ rawSegments: segments, wordCount: 999, transcriptDurationMs: 61000 }),
+      entry({
+        rawSegments: segments,
+        wordCount: 999,
+        transcriptDurationMs: 61000,
+      }),
       "text",
     );
 

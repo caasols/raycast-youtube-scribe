@@ -26,7 +26,10 @@ function segments(n: number, seed = 0): TranscriptSegment[] {
   }));
 }
 
-function entry(id: string, overrides: Partial<HistoryEntry> = {}): HistoryEntry {
+function entry(
+  id: string,
+  overrides: Partial<HistoryEntry> = {},
+): HistoryEntry {
   return {
     id,
     fetchKey: `${id}::auto`,
@@ -113,7 +116,11 @@ describe("writing", () => {
 
   it("patchHistoryEntry persists newly supplied segments", async () => {
     await prependHistory(
-      entry("a", { status: "fetching", rawSegments: undefined, segmentCount: 0 }),
+      entry("a", {
+        status: "fetching",
+        rawSegments: undefined,
+        segmentCount: 0,
+      }),
     );
     expect(await loadSegments("a")).toBeUndefined();
 

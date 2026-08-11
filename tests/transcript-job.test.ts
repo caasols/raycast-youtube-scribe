@@ -144,9 +144,8 @@ describe("transcript job orchestration", () => {
   it("prepares a pending fetch plan without running yt-dlp immediately", async () => {
     deps.loadHistory.mockResolvedValue([]);
 
-    const { prepareTranscriptJob } = await import(
-      "../src/commands/get-youtube-transcript/transcript-job"
-    );
+    const { prepareTranscriptJob } =
+      await import("../src/commands/get-youtube-transcript/transcript-job");
 
     const result = await prepareTranscriptJob(
       "https://www.youtube.com/shorts/abc123def45",
@@ -170,9 +169,8 @@ describe("transcript job orchestration", () => {
   });
 
   it("uses yt-dlp metadata title when oembed title equals video ID", async () => {
-    const { prepareTranscriptJob, runPreparedTranscriptJob } = await import(
-      "../src/commands/get-youtube-transcript/transcript-job"
-    );
+    const { prepareTranscriptJob, runPreparedTranscriptJob } =
+      await import("../src/commands/get-youtube-transcript/transcript-job");
     deps.loadHistory.mockResolvedValue([]);
     deps.fetchVideoTitle.mockResolvedValue("abc123def45"); // oembed failed, returned video ID
 
@@ -205,9 +203,8 @@ describe("transcript job orchestration", () => {
     // The superseded worker launch is what surfaced as "Worker unloaded".
     deps.loadHistory.mockResolvedValue([]);
 
-    const { prepareTranscriptJob } = await import(
-      "../src/commands/get-youtube-transcript/transcript-job"
-    );
+    const { prepareTranscriptJob } =
+      await import("../src/commands/get-youtube-transcript/transcript-job");
 
     const url = "https://www.youtube.com/watch?v=abc123def45";
     const [first, second] = await Promise.all([
@@ -228,9 +225,8 @@ describe("transcript job orchestration", () => {
   });
 
   it("executes a prepared background fetch against the existing pending entry", async () => {
-    const { prepareTranscriptJob, runPreparedTranscriptJob } = await import(
-      "../src/commands/get-youtube-transcript/transcript-job"
-    );
+    const { prepareTranscriptJob, runPreparedTranscriptJob } =
+      await import("../src/commands/get-youtube-transcript/transcript-job");
     deps.loadHistory.mockResolvedValue([]);
 
     const prepared = await prepareTranscriptJob(

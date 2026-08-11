@@ -101,10 +101,7 @@ describe("v5 -> v6 migration", () => {
     const v5Payload = (await LocalStorage.getItem<string>(HISTORY_KEY)) ?? "";
 
     // Simulate a crash mid-migration: one body already written, index still v5.
-    await LocalStorage.setItem(
-      segmentsKey("e0"),
-      JSON.stringify(segments(4)),
-    );
+    await LocalStorage.setItem(segmentsKey("e0"), JSON.stringify(segments(4)));
     expect(JSON.parse(v5Payload).version).toBe(5);
 
     const loaded = await loadHistory();

@@ -94,8 +94,7 @@ describe("history persistence", () => {
             segmentCount: 0,
             status: "error",
             statusMessage: "Failed to fetch transcript.",
-            errorLog:
-              "yt-dlp timed out while fetching captions. Please retry.",
+            errorLog: "yt-dlp timed out while fetching captions. Please retry.",
           },
         ],
       }),
@@ -159,9 +158,15 @@ describe("history persistence", () => {
 
     expect(result.entries).toHaveLength(100);
     // Under pure recency: all 20 fetching (April) + all 50 error (Feb) + 30 of 60 finished (Jan)
-    expect(result.entries.filter((entry) => entry.status === "fetching")).toHaveLength(20);
-    expect(result.entries.filter((entry) => entry.status === "error")).toHaveLength(50);
-    expect(result.entries.filter((entry) => entry.status === "finished")).toHaveLength(30);
+    expect(
+      result.entries.filter((entry) => entry.status === "fetching"),
+    ).toHaveLength(20);
+    expect(
+      result.entries.filter((entry) => entry.status === "error"),
+    ).toHaveLength(50);
+    expect(
+      result.entries.filter((entry) => entry.status === "finished"),
+    ).toHaveLength(30);
     // Newest first
     expect(result.entries[0]?.status).toBe("fetching");
     expect(result.entries.at(-1)?.status).toBe("finished");

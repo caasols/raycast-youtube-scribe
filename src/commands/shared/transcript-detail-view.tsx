@@ -141,7 +141,10 @@ export function TranscriptDetailView({
                     onAction={async () => {
                       const filename = `${sanitizeFilename(entry.title)}-summary.md`;
                       try {
-                        await saveToDownloads(filename, entry.aiSummaries![0].content);
+                        await saveToDownloads(
+                          filename,
+                          entry.aiSummaries![0].content,
+                        );
                         await showToast({
                           style: Toast.Style.Success,
                           title: "Exported",

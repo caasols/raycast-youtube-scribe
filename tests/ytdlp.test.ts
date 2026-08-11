@@ -32,13 +32,18 @@ describe("yt-dlp provider", () => {
 
   it("discovers yt-dlp from which output when known paths are absent", () => {
     execFileSyncMock.mockReturnValue("/custom/bin/yt-dlp\n");
-    expect(findYtDlp()).toEqual({ path: "/custom/bin/yt-dlp", source: "which" });
+    expect(findYtDlp()).toEqual({
+      path: "/custom/bin/yt-dlp",
+      source: "which",
+    });
   });
 
   it("fails when no subtitle files are produced", async () => {
     mkdtempSyncMock.mockReturnValue("/tmp/ytscribe-123");
     readdirSyncMock.mockReturnValue([]);
-    execFileMock.mockImplementation((_bin, _args, _opts, callback) => callback(null, "", ""));
+    execFileMock.mockImplementation((_bin, _args, _opts, callback) =>
+      callback(null, "", ""),
+    );
 
     await expect(
       fetchTranscriptWithYtDlp({
@@ -53,7 +58,9 @@ describe("yt-dlp provider", () => {
   it("falls back to chrome cookies when no browser app is provided", async () => {
     mkdtempSyncMock.mockReturnValue("/tmp/ytscribe-123");
     readdirSyncMock.mockReturnValueOnce(["transcript.en.vtt"]);
-    readFileSyncMock.mockReturnValue("WEBVTT\n\n00:00:00.000 --> 00:00:01.000\nhello\n");
+    readFileSyncMock.mockReturnValue(
+      "WEBVTT\n\n00:00:00.000 --> 00:00:01.000\nhello\n",
+    );
     execFileMock
       .mockImplementationOnce((_bin, _args, _opts, callback) =>
         callback(null, "", ""),
@@ -87,7 +94,9 @@ describe("yt-dlp provider", () => {
 
     expect(execFileMock).toHaveBeenCalled();
     // First attempt is without cookies (faster path); cookies used as fallback
-    expect(execFileMock.mock.calls[0][1]).not.toContain("--cookies-from-browser");
+    expect(execFileMock.mock.calls[0][1]).not.toContain(
+      "--cookies-from-browser",
+    );
     expect(result.videoMetadata).toEqual({
       channelName: "Rick Astley",
       creatorHandle: "@RickAstleyYT",
@@ -107,7 +116,9 @@ describe("yt-dlp provider", () => {
   it("recovers partial subtitles when a yt-dlp attempt times out", async () => {
     mkdtempSyncMock.mockReturnValue("/tmp/ytscribe-123");
     readdirSyncMock.mockReturnValueOnce(["transcript.en.vtt"]);
-    readFileSyncMock.mockReturnValue("WEBVTT\n\n00:00:00.000 --> 00:00:01.000\nhello\n");
+    readFileSyncMock.mockReturnValue(
+      "WEBVTT\n\n00:00:00.000 --> 00:00:01.000\nhello\n",
+    );
     execFileMock
       .mockImplementationOnce((_bin, _args, _opts, callback) =>
         callback({ killed: true, signal: "SIGTERM", stdout: "", stderr: "" }),
@@ -132,7 +143,9 @@ describe("yt-dlp provider", () => {
   it("does not fail transcript fetch when metadata fetch fails", async () => {
     mkdtempSyncMock.mockReturnValue("/tmp/ytscribe-123");
     readdirSyncMock.mockReturnValueOnce(["transcript.en.vtt"]);
-    readFileSyncMock.mockReturnValue("WEBVTT\n\n00:00:00.000 --> 00:00:01.000\nhello\n");
+    readFileSyncMock.mockReturnValue(
+      "WEBVTT\n\n00:00:00.000 --> 00:00:01.000\nhello\n",
+    );
     execFileMock
       .mockImplementationOnce((_bin, _args, _opts, callback) =>
         callback(null, "", ""),
